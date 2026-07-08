@@ -1,0 +1,7 @@
+Risk_ID,Risk_Name,Risk_Level,Status,Control_Status
+R001,Unpatched Servers,High,Open,Implemented
+R002,Weak Password Policy,Medium,Open,In Progress
+R003,Missing MFA,High,Open,Planned
+R004,Data Retention Issues,Low,Closed,Implemented
+R005,Privilege Escalation,Medium,Open,In Progress
+R006,Legacy Application Risk,High,Open,Planned
