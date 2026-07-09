@@ -1,7 +1,9 @@
-Risk_ID,Risk_Name,Risk_Level,Status,Control_Status
-R001,Unpatched Servers,High,Open,Implemented
-R002,Weak Password Policy,Medium,Open,In Progress
-R003,Missing MFA,High,Open,Planned
-R004,Data Retention Issues,Low,Closed,Implemented
-R005,Privilege Escalation,Medium,Open,In Progress
-R006,Legacy Application Risk,High,Open,Planned
+Risk_ID,Risk_Name,Risk_Level,Likelihood,Impact,Status,Control_Status,Risk_Owner
+R001,Unpatched Servers,High,5,5,Open,Implemented,Infrastructure Team
+R002,Weak Password Policy,Medium,3,4,Open,In Progress,Security Team
+R003,Missing MFA,High,4,5,Open,Planned,Identity Team
+R004,Data Retention Issues,Low,2,2,Closed,Implemented,Compliance Team
+R005,Privilege Escalation,Medium,3,4,Open,In Progress,Security Team
+R006,Legacy Application Risk,High,4,5,Open,Planned,Applications Team
+R007,Firewall Misconfiguration,Medium,4,3,Closed,Implemented,Network Team
+R008,Unsupported Operating Systems,High,5,4,Open,In Progress,Infrastructure Team
