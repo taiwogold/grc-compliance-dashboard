@@ -280,28 +280,28 @@ This project demonstrates practical capabilities in:
 
 ## Future Roadmap
 
-### Version 1.0
-- Initial dashboard
-- KPI metrics
-- Risk distribution charts
+### v1.0
+✅ Initial Dashboard
 
-### Version 1.1
-- Compliance score calculation
-- Executive summary enhancements
+### v1.1
+✅ Compliance Score
+✅ Executive Summary
+✅ ISO 27001 Coverage
 
-### Version 1.2
-- Risk heat map
-- ISO 27001 control coverage
+### v1.2
+⬜ Risk Owner Filter
+⬜ Risk Heat Map
+⬜ Open vs Closed Actions
 
-### Version 2.0
-- Email automation
-- Scheduled reporting
-- PDF exports
+### v2.0
+⬜ Email Automation
+⬜ Escalation Tracking
+⬜ PDF Reports
 
-### Version 3.0
-- Microsoft Graph integration
-- User authentication
-- SQL backend
+### v3.0
+⬜ Microsoft Graph
+⬜ SQL Database
+⬜ Authentication
 
 ---
 
