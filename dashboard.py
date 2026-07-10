@@ -7,6 +7,7 @@ Main application file — handles layout, UI components, and
 orchestration. All business logic lives in the utils/ package.
 
 Release Notes:
+    v2.2.0 - Audit, History & Intelligence
     v2.1.1 - Modular refactor (no feature changes)
     v2.1.0 - Outlook Integration & Automated Reminder Dispatch
     v2.0.2 - Monthly Management Reports & Enhanced PDF Exports
@@ -69,7 +70,7 @@ from utils import (
 # CONFIGURATION
 # ==========================================================
 
-APP_VERSION = "2.1.1"
+APP_VERSION = "2.2.0-alpha.1"
 
 # Set version in PDF module
 set_version(APP_VERSION)
