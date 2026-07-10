@@ -63,6 +63,14 @@ from utils import (
     calculate_risk_scores,
     get_top_risks,
     get_score_distribution,
+    # Database / History
+    init_database,
+    capture_snapshot,
+    get_snapshots,
+    get_snapshot_detail,
+    get_risk_history,
+    get_latest_delta,
+    get_snapshot_count,
 )
 
 
@@ -70,7 +78,7 @@ from utils import (
 # CONFIGURATION
 # ==========================================================
 
-APP_VERSION = "2.2.0-alpha.1"
+APP_VERSION = "2.2.0-alpha.2"
 
 # Set version in PDF module
 set_version(APP_VERSION)
@@ -280,6 +288,14 @@ controls reduce the score by 50%.
 # Apply scoring
 scored_df = calculate_risk_scores(filtered_risk_df)
 
+# --- Initialise database and capture daily snapshot ---
+init_database()
+capture_snapshot(
+    risk_df=filtered_risk_df,
+    compliance_score=compliance_score,
+    scored_df=scored_df
+)
+
 # Score KPIs
 score_dist = get_score_distribution(scored_df)
 sc1, sc2, sc3, sc4 = st.columns(4)
@@ -477,6 +493,132 @@ else:
 st.subheader("Risk Register")
 st.dataframe(filtered_risk_df, width="stretch")
 st.caption(f"Displaying {len(filtered_risk_df)} risk records.")
+
+
+# ==========================================================
+# RISK HISTORY & SNAPSHOTS
+# ==========================================================
+
+st.subheader("📸 Risk History & Snapshots")
+
+st.markdown("""
+The dashboard captures a daily snapshot of the risk register
+to enable historical comparison, trend analysis, and audit evidence.
+Snapshots are stored locally in `data/grc_history.db`.
+""")
+
+# Snapshot summary
+snapshot_count = get_snapshot_count()
+snapshots_df = get_snapshots()
+
+hist_c1, hist_c2, hist_c3 = st.columns(3)
+hist_c1.metric("Total Snapshots", snapshot_count)
+
+if not snapshots_df.empty:
+    hist_c2.metric("First Snapshot", snapshots_df["snapshot_date"].iloc[-1])
+    hist_c3.metric("Latest Snapshot", snapshots_df["snapshot_date"].iloc[0])
+
+# Delta since last snapshot
+delta = get_latest_delta()
+if delta:
+    st.markdown("#### Changes Since Last Snapshot")
+    d_c1, d_c2, d_c3, d_c4, d_c5 = st.columns(5)
+    d_c1.metric(
+        "Total Risks",
+        filtered_risk_df.shape[0],
+        delta=f"{delta['delta_total']:+d}" if delta["delta_total"] != 0 else None
+    )
+    d_c2.metric(
+        "Open Risks",
+        metrics["open_risks"],
+        delta=f"{delta['delta_open']:+d}" if delta["delta_open"] != 0 else None,
+        delta_color="inverse"
+    )
+    d_c3.metric(
+        "Closed Risks",
+        metrics["closed_risks"],
+        delta=f"{delta['delta_closed']:+d}" if delta["delta_closed"] != 0 else None
+    )
+    d_c4.metric(
+        "High Risks",
+        metrics["high_risks"],
+        delta=f"{delta['delta_high']:+d}" if delta["delta_high"] != 0 else None,
+        delta_color="inverse"
+    )
+    d_c5.metric(
+        "Compliance",
+        f"{compliance_score}%",
+        delta=f"{delta['delta_compliance']:+.1f}%" if delta["delta_compliance"] != 0 else None
+    )
+    st.caption(
+        f"Comparing {delta['date_current']} vs {delta['date_previous']}"
+    )
+
+# Snapshot history table
+if not snapshots_df.empty:
+    st.markdown("#### Snapshot History")
+    st.dataframe(
+        snapshots_df[
+            ["snapshot_date", "total_risks", "open_risks",
+             "closed_risks", "high_risks", "compliance_score"]
+        ],
+        width="stretch",
+        column_config={
+            "snapshot_date": "Date",
+            "total_risks": "Total",
+            "open_risks": "Open",
+            "closed_risks": "Closed",
+            "high_risks": "High",
+            "compliance_score": st.column_config.NumberColumn(
+                "Compliance %", format="%.1f"
+            ),
+        }
+    )
+
+# Individual risk tracking
+st.markdown("#### 🔍 Track Individual Risk")
+
+all_risk_ids = sorted(filtered_risk_df["Risk_ID"].unique())
+selected_risk_id = st.selectbox(
+    "Select Risk ID to view history",
+    all_risk_ids,
+    key="risk_history_select"
+)
+
+if selected_risk_id:
+    risk_hist_df = get_risk_history(selected_risk_id)
+
+    if not risk_hist_df.empty:
+        st.dataframe(
+            risk_hist_df,
+            width="stretch",
+            column_config={
+                "snapshot_date": "Date",
+                "risk_level": "Level",
+                "status": "Status",
+                "risk_owner": "Owner",
+                "residual_score": st.column_config.NumberColumn(
+                    "Risk Score", format="%.1f"
+                ),
+            }
+        )
+
+        # Score trend for this risk
+        if "residual_score" in risk_hist_df.columns and risk_hist_df["residual_score"].notna().any():
+            import plotly.express as px
+            score_trend = px.line(
+                risk_hist_df,
+                x="snapshot_date",
+                y="residual_score",
+                markers=True,
+                title=f"Risk Score Trend: {selected_risk_id}"
+            )
+            st.plotly_chart(score_trend, width="stretch", key="risk_score_trend")
+    else:
+        st.info(
+            f"No history available for {selected_risk_id}. "
+            f"History builds over time as daily snapshots are captured."
+        )
 
 
 # ==========================================================

@@ -35,7 +35,7 @@ from reportlab.platypus import (
 # ==========================================================
 
 # Passed from main app — avoids circular import
-_APP_VERSION = "2.2.0-alpha.1"
+_APP_VERSION = "2.2.0-alpha.2"
 
 
 def set_version(version: str):

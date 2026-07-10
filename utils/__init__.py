@@ -54,3 +54,14 @@ from .risk_scoring import (
     get_score_band,
     get_score_distribution,
 )
+
+from .database import (
+    init_database,
+    capture_snapshot,
+    get_snapshots,
+    get_snapshot_detail,
+    get_risk_history,
+    get_latest_delta,
+    has_snapshot_today,
+    get_snapshot_count,
+)

@@ -3,3 +3,4 @@ __pycache__/
 .env
 .vscode/
 logs/
+data/grc_history.db
