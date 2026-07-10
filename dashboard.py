@@ -1,12 +1,21 @@
 """
 GRC Compliance Dashboard
-Version: 2.0.2
+Version: 2.1.0
 Author: Taiwo Durodola-Tunde
 
 Release Notes:
+    v2.1.0 - Outlook Integration & Automated Reminder Dispatch
     v2.0.2 - Monthly Management Reports & Enhanced PDF Exports
     v2.0.1 - Overdue Risk Escalation Tracking
     v2.0.0 - Initial release with KPI dashboard
+
+Security Notes:
+    - Email dispatch uses win32com.client (COM automation) to
+      interface with the user's locally authenticated Outlook client.
+    - NO credentials are stored, transmitted, or hardcoded.
+    - All emails route through the corporate Exchange server.
+    - Session rate limiting prevents accidental mass-mailing.
+    - Full audit trail maintained in logs/email_audit.csv.
 """
 
 from datetime import datetime
@@ -32,12 +41,15 @@ from reportlab.platypus import (
     Image
 )
 
+# Import secure email dispatcher
+from utils.email_dispatcher import OutlookDispatcher
+
 
 # ==========================================================
 # CONFIGURATION
 # ==========================================================
 
-APP_VERSION = "2.0.2"
+APP_VERSION = "2.1.0"
 
 st.set_page_config(
     page_title="GRC Compliance Dashboard",
@@ -1941,12 +1953,55 @@ st.dataframe(
 
 
 # ==========================================================
-# REMINDER GENERATION
+# ==========================================================
+# AUTOMATED REMINDER DISPATCH (OUTLOOK INTEGRATION)
 # ==========================================================
 
 st.subheader(
-    "📨 Risk Owner Reminder Generation"
+    "📨 Automated Reminder Dispatch"
 )
+
+st.markdown(
+    """
+    Send risk remediation reminders directly via Outlook.
+    Emails are dispatched through your authenticated Outlook
+    desktop client — **no credentials are stored or transmitted**.
+
+    🔒 **Security:** All emails route through corporate Exchange
+    with full DLP, retention policies, and audit trail.
+    """
+)
+
+# Initialise the Outlook dispatcher (cached per session)
+if "email_dispatcher" not in st.session_state:
+    st.session_state.email_dispatcher = OutlookDispatcher()
+
+dispatcher = st.session_state.email_dispatcher
+
+# Show connection status
+status_col1, status_col2, status_col3 = st.columns(3)
+
+with status_col1:
+    if dispatcher.is_available:
+        st.success("🟢 Outlook Connected")
+    else:
+        st.error("🔴 Outlook Not Available")
+
+with status_col2:
+    stats = dispatcher.get_session_stats()
+    st.metric(
+        "Emails Sent (Session)",
+        stats["emails_sent"]
+    )
+
+with status_col3:
+    st.metric(
+        "Remaining Quota",
+        stats["remaining_quota"]
+    )
+
+# --- Individual Reminder ---
+st.markdown("#### Send Individual Reminder")
 
 available_owners = sorted(
     filtered_risk_df[
@@ -1956,7 +2011,8 @@ available_owners = sorted(
 
 selected_owner = st.selectbox(
     "Select Risk Owner",
-    available_owners
+    available_owners,
+    key="reminder_owner_select"
 )
 
 owner_risks = filtered_risk_df[
@@ -1972,6 +2028,7 @@ open_risks = owner_risks[
     owner_risks["Status"] == "Open"
 ]
 
+# Build the email content with overdue information
 risk_lines = []
 
 for _, row in open_risks.iterrows():
@@ -1981,7 +2038,7 @@ for _, row in open_risks.iterrows():
         due_date = pd.to_datetime(row["Due_Date"])
         days_diff = (datetime.now() - due_date).days
         if days_diff > 0:
-            due_info = f" [⚠️ OVERDUE by {days_diff} days]"
+            due_info = f" [OVERDUE by {days_diff} days]"
         else:
             due_info = f" [Due: {due_date.strftime('%Y-%m-%d')}]"
 
@@ -1991,48 +2048,272 @@ for _, row in open_risks.iterrows():
         f"({row['Risk_Level']}){due_info}"
     )
 
-risk_list = "\n".join(
-    risk_lines
+risk_list = "\n".join(risk_lines)
+
+email_subject = "Risk Remediation Status Update Required"
+
+email_body = (
+    f"Hello {selected_owner},\n\n"
+    f"Please review the following open risks assigned "
+    f"to your team:\n\n"
+    f"{risk_list}\n\n"
+    f"Please provide an update on:\n\n"
+    f"  - Current remediation progress\n"
+    f"  - Expected completion date\n"
+    f"  - Any blockers preventing resolution\n\n"
+    f"Your response will support Governance & "
+    f"Assurance reporting activities.\n\n"
+    f"Kind Regards,\n"
+    f"Cyber Security Governance & Assurance\n\n"
+    f"---\n"
+    f"Sent via GRC Compliance Dashboard v{APP_VERSION}"
 )
 
-email_text = f"""
-Subject: Risk Remediation Status Update
+# Email preview
+st.markdown("**Preview:**")
 
-To: {owner_email}
+preview_col1, preview_col2 = st.columns([1, 3])
 
-Hello {selected_owner},
+with preview_col1:
+    st.markdown(f"**To:** {owner_email}")
+    st.markdown(f"**Subject:** {email_subject}")
+    st.markdown("**Priority:** High")
 
-Please review the following open risks assigned
-to your team:
+with preview_col2:
+    st.text_area(
+        "Email Body",
+        email_body,
+        height=250,
+        key="email_preview",
+        disabled=True
+    )
 
-{risk_list}
+# Confirmation and send controls
+st.markdown("---")
 
-Please provide an update on:
+send_col1, send_col2 = st.columns([1, 3])
 
-• Current remediation progress
+with send_col1:
 
-• Expected completion date
+    # Explicit confirmation checkbox (security measure)
+    confirm_send = st.checkbox(
+        "I confirm this email is correct",
+        key="confirm_individual_send"
+    )
 
-• Any blockers preventing resolution
+with send_col2:
 
-Your response will support Governance &
-Assurance reporting activities.
+    if st.button(
+        "📧 Send Reminder via Outlook",
+        disabled=not confirm_send,
+        key="send_individual_btn"
+    ):
+        if not dispatcher.is_available:
+            st.error(
+                "Outlook is not available. Ensure the "
+                "desktop client is running and try again."
+            )
+        elif not confirm_send:
+            st.warning(
+                "Please confirm the email before sending."
+            )
+        else:
+            # Dispatch the email
+            result = dispatcher.send_reminder(
+                to=owner_email,
+                subject=email_subject,
+                body=email_body,
+                importance="High"
+            )
 
-Kind Regards,
+            if result["success"]:
+                st.success(
+                    f"✅ {result['message']}"
+                )
+            else:
+                st.error(
+                    f"❌ {result['message']}"
+                )
 
-Cyber Security Governance & Assurance
-"""
 
-st.text_area(
-    "Generated Reminder Email",
-    email_text,
-    height=350
+# --- Bulk Reminder for Overdue Risks ---
+st.markdown("---")
+st.markdown("#### 🚨 Bulk Dispatch: All Overdue Risk Owners")
+
+st.markdown(
+    """
+    Send reminders to **all** owners with overdue risks in a single
+    action. Each owner receives an individual email (no BCC) for
+    full transparency and audit compliance.
+    """
 )
 
-st.code(
-    email_text,
-    language="text"
+if not overdue_df.empty:
+
+    # Show who will receive emails
+    overdue_owners = (
+        overdue_df[["Risk_Owner", "Owner_Email"]]
+        .drop_duplicates()
+        .reset_index(drop=True)
+    )
+
+    st.dataframe(
+        overdue_owners,
+        use_container_width=True,
+        column_config={
+            "Risk_Owner": "Recipient",
+            "Owner_Email": "Email Address"
+        }
+    )
+
+    st.caption(
+        f"{len(overdue_owners)} owner(s) will receive reminders."
+    )
+
+    # Bulk send controls with double confirmation
+    bulk_col1, bulk_col2 = st.columns([1, 3])
+
+    with bulk_col1:
+        confirm_bulk = st.checkbox(
+            "I authorise bulk dispatch",
+            key="confirm_bulk_send"
+        )
+
+    with bulk_col2:
+
+        if st.button(
+            f"🚨 Send {len(overdue_owners)} Reminder(s)",
+            disabled=not confirm_bulk,
+            key="send_bulk_btn"
+        ):
+            if not dispatcher.is_available:
+                st.error(
+                    "Outlook is not available."
+                )
+            else:
+                # Build recipient list
+                recipients = []
+                for _, owner_row in overdue_owners.iterrows():
+                    recipients.append({
+                        "email": owner_row["Owner_Email"],
+                        "name": owner_row["Risk_Owner"]
+                    })
+
+                # Bulk dispatch template
+                bulk_subject = (
+                    "URGENT: Overdue Risk Remediation Required"
+                )
+
+                bulk_body_template = (
+                    "Hello {name},\n\n"
+                    "This is an automated reminder that one or more "
+                    "risks assigned to your team have exceeded their "
+                    "remediation due date.\n\n"
+                    "Please review your overdue risks in the GRC "
+                    "Compliance Dashboard and provide an immediate "
+                    "status update.\n\n"
+                    "Required actions:\n"
+                    "  - Review all overdue risks assigned to you\n"
+                    "  - Provide revised completion dates\n"
+                    "  - Escalate any blockers to your line manager\n\n"
+                    "Failure to respond may result in further "
+                    "escalation per the GRC Escalation Policy.\n\n"
+                    "Kind Regards,\n"
+                    "Cyber Security Governance & Assurance\n\n"
+                    "---\n"
+                    f"Sent via GRC Compliance Dashboard v{APP_VERSION}"
+                )
+
+                # Send bulk reminders
+                results = dispatcher.send_bulk_reminders(
+                    recipients=recipients,
+                    subject=bulk_subject,
+                    body_template=bulk_body_template,
+                    importance="High"
+                )
+
+                # Display results
+                sent_count = sum(
+                    1 for r in results if r["success"]
+                )
+                failed_count = len(results) - sent_count
+
+                if sent_count > 0:
+                    st.success(
+                        f"✅ {sent_count} reminder(s) sent successfully."
+                    )
+
+                if failed_count > 0:
+                    st.error(
+                        f"❌ {failed_count} email(s) failed to send."
+                    )
+
+                # Show detailed results
+                for r in results:
+                    if not r["success"]:
+                        st.warning(
+                            f"⚠️ {r['recipient']}: {r['message']}"
+                        )
+
+else:
+    st.info(
+        "✅ No overdue risks — no bulk reminders required."
+    )
+
+
+# --- Audit Log Viewer ---
+st.markdown("---")
+st.markdown("#### 📋 Email Audit Log")
+
+st.markdown(
+    """
+    All email dispatch activity is recorded for governance
+    and compliance purposes. This log is stored locally at
+    `logs/email_audit.csv`.
+    """
 )
+
+audit_entries = dispatcher.get_audit_log()
+
+if audit_entries:
+    audit_df = pd.DataFrame(audit_entries)
+    st.dataframe(
+        audit_df,
+        use_container_width=True
+    )
+    st.caption(
+        f"Showing {len(audit_entries)} audit entries."
+    )
+else:
+    st.info(
+        "No email dispatch activity recorded yet."
+    )
+
+
+# ==========================================================
+# RISK OWNER EMAIL DIRECTORY
+# ==========================================================
+
+st.subheader(
+    "📧 Risk Owner Email Directory"
+)
+
+owner_directory = (
+    risk_df[
+        [
+            "Risk_Owner",
+            "Owner_Email"
+        ]
+    ]
+    .drop_duplicates()
+    .sort_values("Risk_Owner")
+)
+
+st.dataframe(
+    owner_directory,
+    use_container_width=True
+)
+
 
 # ==========================================================
 # FOOTER
