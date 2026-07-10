@@ -57,6 +57,8 @@ def load_data():
         "data/risk_register.csv"
     )
 
+    if "Owner_Email" not in risk_df.columns:
+        risk_df["Owner_Email"] = ""
     controls_df = pd.read_csv(
         "data/controls.csv"
     )
@@ -635,6 +637,115 @@ st.download_button(
     "application/pdf"
 )
 
+# ==========================================================
+# RISK OWNER EMAIL DIRECTORY
+# ==========================================================
+
+st.subheader(
+    "📧 Risk Owner Email Directory"
+)
+
+owner_directory = (
+    risk_df[
+        [
+            "Risk_Owner",
+            "Owner_Email"
+        ]
+    ]
+    .drop_duplicates()
+    .sort_values("Risk_Owner")
+)
+
+st.dataframe(
+    owner_directory,
+    width="stretch"
+)
+
+
+# ==========================================================
+# REMINDER GENERATION
+# ==========================================================
+
+st.subheader(
+    "📨 Risk Owner Reminder Generation"
+)
+
+available_owners = sorted(
+    filtered_risk_df[
+        "Risk_Owner"
+    ].unique()
+)
+
+selected_owner = st.selectbox(
+    "Select Risk Owner",
+    available_owners
+)
+
+owner_risks = filtered_risk_df[
+    filtered_risk_df["Risk_Owner"]
+    == selected_owner
+]
+
+owner_email = owner_risks[
+    "Owner_Email"
+].iloc[0]
+
+open_risks = owner_risks[
+    owner_risks["Status"] == "Open"
+]
+
+risk_lines = []
+
+for _, row in open_risks.iterrows():
+
+    risk_lines.append(
+        f"- {row['Risk_ID']} : "
+        f"{row['Risk_Name']} "
+        f"({row['Risk_Level']})"
+    )
+
+risk_list = "\n".join(
+    risk_lines
+)
+
+email_text = f"""
+Subject: Risk Remediation Status Update
+
+To: {owner_email}
+
+Hello {selected_owner},
+
+Please review the following open risks assigned
+to your team:
+
+{risk_list}
+
+Please provide an update on:
+
+• Current remediation progress
+
+• Expected completion date
+
+• Any blockers preventing resolution
+
+Your response will support Governance &
+Assurance reporting activities.
+
+Kind Regards,
+
+Cyber Security Governance & Assurance
+"""
+
+st.text_area(
+    "Generated Reminder Email",
+    email_text,
+    height=350
+)
+
+st.code(
+    email_text,
+    language="text"
+)
 
 # ==========================================================
 # FOOTER

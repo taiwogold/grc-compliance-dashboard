@@ -1,9 +1,9 @@
-Risk_ID,Risk_Name,Risk_Level,Likelihood,Impact,Status,Control_Status,Risk_Owner
-R001,Unpatched Servers,High,5,5,Open,Implemented,Infrastructure Team
-R002,Weak Password Policy,Medium,3,4,Open,In Progress,Security Team
-R003,Missing MFA,High,4,5,Open,Planned,Identity Team
-R004,Data Retention Issues,Low,2,2,Closed,Implemented,Compliance Team
-R005,Privilege Escalation,Medium,3,4,Open,In Progress,Security Team
-R006,Legacy Application Risk,High,4,5,Open,Planned,Applications Team
-R007,Firewall Misconfiguration,Medium,4,3,Closed,Implemented,Network Team
-R008,Unsupported Operating Systems,High,5,4,Open,In Progress,Infrastructure Team
+Risk_ID,Risk_Name,Risk_Level,Likelihood,Impact,Status,Control_Status,Risk_Owner,Owner_Email
+R001,Unpatched Servers,High,5,5,Open,Implemented,Infrastructure Team,infra.team@company.com
+R002,Weak Password Policy,Medium,3,4,Open,In Progress,Security Team,security.team@company.com
+R003,Missing MFA,High,4,5,Open,Planned,Identity Team,identity.team@company.com
+R004,Data Retention Issues,Low,2,2,Closed,Implemented,Compliance Team,compliance.team@company.com
+R005,Privilege Escalation,Medium,3,4,Open,In Progress,Security Team,security.team@company.com
+R006,Legacy Application Risk,High,4,5,Open,Planned,Applications Team,applications.team@company.com
+R007,Firewall Misconfiguration,Medium,4,3,Closed,Implemented,Network Team,network.team@company.com
+R008,Unsupported Operating Systems,High,5,4,Open,In Progress,Infrastructure Team,infra.team@company.com
