@@ -83,6 +83,8 @@ from utils import (
     get_audit_count,
     export_audit_trail,
     get_today_actions,
+    # Alerts
+    evaluate_alerts,
 )
 
 
@@ -90,7 +92,7 @@ from utils import (
 # CONFIGURATION
 # ==========================================================
 
-APP_VERSION = "2.2.0-alpha.3"
+APP_VERSION = "2.2.0-alpha.4"
 
 # Set version in PDF module
 set_version(APP_VERSION)
@@ -202,6 +204,38 @@ c1.metric("Compliance Score", f"{compliance_score}%")
 c2.metric("Open Risks", metrics["open_risks"])
 c3.metric("Closed Risks", metrics["closed_risks"])
 c4.metric("High Risks", metrics["high_risks"])
+
+
+# ==========================================================
+# TREND ALERTS & THRESHOLD NOTIFICATIONS
+# ==========================================================
+
+# Evaluate all alert conditions
+delta = get_latest_delta()
+triggered_alerts = evaluate_alerts(
+    compliance_score=compliance_score,
+    metrics=metrics,
+    escalated_df=calculate_escalation(filtered_risk_df),
+    total_risks=len(filtered_risk_df),
+    delta=delta
+)
+
+# Display alert banner if any alerts are triggered
+if triggered_alerts:
+    st.subheader("🚨 Active Alerts")
+
+    for alert in triggered_alerts:
+        if alert.severity == "CRITICAL":
+            st.error(f"🔴 **{alert.title}** — {alert.message}")
+        elif alert.severity == "WARNING":
+            st.warning(f"🟠 **{alert.title}** — {alert.message}")
+        else:
+            st.info(f"🔵 **{alert.title}** — {alert.message}")
+
+    st.caption(
+        f"{len(triggered_alerts)} alert(s) active. "
+        f"Review and take action to resolve."
+    )
 
 
 # ==========================================================
