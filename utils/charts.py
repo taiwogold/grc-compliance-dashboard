@@ -22,18 +22,34 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-from .theme import (
-    RISK_LEVEL_COLOURS,
-    ESCALATION_COLOURS,
-    SCORE_BAND_COLOURS,
-    get_theme,
-    apply_chart_theme,
-)
+from .theme import get_theme, apply_chart_theme
 
 
 # ==========================================================
-# COLOUR PALETTES (imported from theme module)
+# COLOUR PALETTES
+# These are defined here directly to avoid circular imports
+# with the theme module. They match theme.py values.
 # ==========================================================
+
+RISK_LEVEL_COLOURS = {
+    "High": "#ef5350",
+    "Medium": "#ffca28",
+    "Low": "#66bb6a",
+}
+
+ESCALATION_COLOURS = {
+    "Level 1 - Owner Reminder": "#ffca28",
+    "Level 2 - Manager Escalation": "#ff9800",
+    "Level 3 - Director Escalation": "#ef5350",
+    "Level 4 - Executive Escalation": "#ab47bc",
+}
+
+SCORE_BAND_COLOURS = {
+    "Critical": "#ab47bc",
+    "High": "#ef5350",
+    "Medium": "#ffca28",
+    "Low": "#66bb6a",
+}
 
 
 # ==========================================================

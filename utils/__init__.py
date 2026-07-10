@@ -90,7 +90,4 @@ from .theme import (
     apply_chart_theme,
     get_available_themes,
     get_custom_css,
-    RISK_LEVEL_COLOURS,
-    ESCALATION_COLOURS,
-    SCORE_BAND_COLOURS,
 )
