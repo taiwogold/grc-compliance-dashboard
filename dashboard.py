@@ -23,6 +23,9 @@ Architecture:
     utils/email_dispatcher.py - Secure Outlook email dispatch
 """
 
+import sys
+sys.dont_write_bytecode = True
+
 from datetime import datetime
 
 import pandas as pd
