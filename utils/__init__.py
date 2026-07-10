@@ -1,6 +1,6 @@
 """
 GRC Compliance Dashboard - Utility Modules
-Version: 2.1.0
+Version: 2.1.1
 
 Package Structure:
     data_loader.py     - CSV loading, validation, caching
@@ -10,7 +10,7 @@ Package Structure:
     email_dispatcher.py - Secure Outlook COM email dispatch
 """
 
-from utils.data_loader import (
+from .data_loader import (
     load_risk_register,
     load_controls,
     load_compliance_history,
@@ -19,7 +19,7 @@ from utils.data_loader import (
     RISK_REGISTER_REQUIRED_COLUMNS,
 )
 
-from utils.metrics import (
+from .metrics import (
     calculate_compliance_score,
     calculate_risk_metrics,
     calculate_escalation,
@@ -27,7 +27,7 @@ from utils.metrics import (
     generate_monthly_summary,
 )
 
-from utils.charts import (
+from .charts import (
     create_compliance_trend_chart,
     create_control_pie_chart,
     create_risk_bar_chart,
@@ -38,10 +38,10 @@ from utils.charts import (
     create_management_trend_chart,
 )
 
-from utils.pdf_generator import (
+from .pdf_generator import (
     generate_pdf,
     generate_enhanced_pdf,
     set_version,
 )
 
-from utils.email_dispatcher import OutlookDispatcher
+from .email_dispatcher import OutlookDispatcher

@@ -272,7 +272,7 @@ owner_summary = (
     .reset_index()
 )
 
-st.dataframe(owner_summary, use_container_width=True)
+st.dataframe(owner_summary, width="stretch")
 
 
 # ==========================================================
@@ -327,7 +327,7 @@ if not overdue_df.empty:
 
     st.dataframe(
         overdue_display,
-        use_container_width=True,
+        width="stretch",
         column_config={
             "Days_Overdue": st.column_config.NumberColumn(
                 "Days Overdue", help="Days past the due date"
@@ -345,7 +345,7 @@ if not overdue_df.empty:
         st.markdown("#### Escalation Level Distribution")
         esc_chart = create_escalation_bar_chart(overdue_df)
         st.plotly_chart(
-            esc_chart, use_container_width=True, key="escalation_distribution"
+            esc_chart, width="stretch", key="escalation_distribution"
         )
 
     with esc_right:
@@ -360,13 +360,13 @@ if not overdue_df.empty:
             .reset_index()
             .sort_values("Max_Days_Overdue", ascending=False)
         )
-        st.dataframe(owner_overdue, use_container_width=True)
+        st.dataframe(owner_overdue, width="stretch")
 
     # Timeline
     st.markdown("#### Overdue Risk Timeline")
     timeline_chart = create_overdue_timeline(overdue_df)
     st.plotly_chart(
-        timeline_chart, use_container_width=True, key="overdue_timeline"
+        timeline_chart, width="stretch", key="overdue_timeline"
     )
 
 else:
@@ -393,7 +393,7 @@ if not upcoming_df.empty:
     )
     st.dataframe(
         upcoming_display,
-        use_container_width=True,
+        width="stretch",
         column_config={
             "Days_Remaining": st.column_config.NumberColumn(
                 "Days Until Due", help="Days until the due date"
@@ -409,7 +409,7 @@ else:
 # ==========================================================
 
 st.subheader("Risk Register")
-st.dataframe(filtered_risk_df, use_container_width=True)
+st.dataframe(filtered_risk_df, width="stretch")
 st.caption(f"Displaying {len(filtered_risk_df)} risk records.")
 
 
@@ -465,7 +465,7 @@ with mgmt_left:
     if trend_df is not None and not trend_df.empty:
         trend_fig = create_management_trend_chart(trend_df)
         st.plotly_chart(
-            trend_fig, use_container_width=True, key="mgmt_trend"
+            trend_fig, width="stretch", key="mgmt_trend"
         )
     else:
         st.info("Compliance trend data not available.")
@@ -709,7 +709,7 @@ if not overdue_df.empty:
         .reset_index(drop=True)
     )
     st.dataframe(
-        overdue_owners, use_container_width=True,
+        overdue_owners, width="stretch",
         column_config={
             "Risk_Owner": "Recipient",
             "Owner_Email": "Email Address"
@@ -781,7 +781,7 @@ for governance and compliance purposes.
 audit_entries = dispatcher.get_audit_log()
 if audit_entries:
     audit_df = pd.DataFrame(audit_entries)
-    st.dataframe(audit_df, use_container_width=True)
+    st.dataframe(audit_df, width="stretch")
     st.caption(f"Showing {len(audit_entries)} audit entries.")
 else:
     st.info("No email dispatch activity recorded yet.")
@@ -798,7 +798,7 @@ owner_directory = (
     .drop_duplicates()
     .sort_values("Risk_Owner")
 )
-st.dataframe(owner_directory, use_container_width=True)
+st.dataframe(owner_directory, width="stretch")
 
 
 # ==========================================================
