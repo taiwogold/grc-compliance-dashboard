@@ -1,0 +1,279 @@
+"""
+Charts Module
+Version: 2.1.0
+Author: Taiwo Durodola-Tunde
+
+Generates all Plotly charts and visualisations used in the
+GRC Compliance Dashboard. Centralises chart configuration
+for consistent styling across the application.
+
+Functions:
+    create_compliance_trend_chart: Line chart with target line.
+    create_control_pie_chart: ISO 27001 control coverage pie.
+    create_risk_bar_chart: Risk level distribution bar chart.
+    create_risk_status_pie: Open vs Closed pie chart.
+    create_heatmap: Risk likelihood x impact heatmap.
+    create_escalation_bar_chart: Escalation level distribution.
+    create_overdue_timeline: Horizontal bar of days overdue.
+    create_management_trend_chart: Trend with target overlay.
+"""
+
+import plotly.express as px
+import plotly.graph_objects as go
+
+
+# ==========================================================
+# COLOUR PALETTES
+# ==========================================================
+
+RISK_LEVEL_COLOURS = {
+    "High": "#dc3545",
+    "Medium": "#ffc107",
+    "Low": "#198754",
+}
+
+ESCALATION_COLOURS = {
+    "Level 1 - Owner Reminder": "#ffc107",
+    "Level 2 - Manager Escalation": "#fd7e14",
+    "Level 3 - Director Escalation": "#dc3545",
+    "Level 4 - Executive Escalation": "#6f42c1",
+}
+
+
+# ==========================================================
+# COMPLIANCE CHARTS
+# ==========================================================
+
+def create_compliance_trend_chart(trend_df):
+    """
+    Create a line chart showing compliance score over time.
+
+    Args:
+        trend_df: DataFrame with 'Month' and 'Score' columns.
+
+    Returns:
+        plotly.graph_objects.Figure: Configured line chart.
+    """
+
+    fig = px.line(
+        trend_df,
+        x="Month",
+        y="Score",
+        markers=True,
+        title="Compliance Trend"
+    )
+
+    return fig
+
+
+def create_control_pie_chart(controls_df, title="ISO 27001 Coverage"):
+    """
+    Create a pie chart of control implementation status.
+
+    Args:
+        controls_df: DataFrame with 'Status' column.
+        title: Chart title string.
+
+    Returns:
+        plotly.graph_objects.Figure: Pie chart figure.
+    """
+
+    return px.pie(
+        controls_df,
+        names="Status",
+        title=title
+    )
+
+
+# ==========================================================
+# RISK CHARTS
+# ==========================================================
+
+def create_risk_bar_chart(risk_df):
+    """
+    Create a bar chart showing risk level distribution.
+
+    Colour-coded by severity: High=red, Medium=amber, Low=green.
+
+    Args:
+        risk_df: DataFrame with 'Risk_Level' column.
+
+    Returns:
+        plotly.graph_objects.Figure: Bar chart figure.
+    """
+
+    risk_counts = (
+        risk_df["Risk_Level"]
+        .value_counts()
+        .reset_index()
+    )
+    risk_counts.columns = ["Risk Level", "Count"]
+
+    return px.bar(
+        risk_counts,
+        x="Risk Level",
+        y="Count",
+        color="Risk Level",
+        color_discrete_map=RISK_LEVEL_COLOURS
+    )
+
+
+def create_risk_status_pie(risk_df):
+    """
+    Create a pie chart showing Open vs Closed risk split.
+
+    Args:
+        risk_df: DataFrame with 'Status' column.
+
+    Returns:
+        plotly.graph_objects.Figure: Pie chart figure.
+    """
+
+    return px.pie(
+        risk_df,
+        names="Status",
+        title="Open vs Closed Actions"
+    )
+
+
+def create_heatmap(risk_df):
+    """
+    Create a density heatmap of Likelihood vs Impact.
+
+    Uses a red colour scale to highlight high-risk concentrations.
+
+    Args:
+        risk_df: DataFrame with 'Likelihood' and 'Impact' columns.
+
+    Returns:
+        plotly.graph_objects.Figure: Heatmap figure.
+    """
+
+    return px.density_heatmap(
+        risk_df,
+        x="Likelihood",
+        y="Impact",
+        color_continuous_scale="Reds"
+    )
+
+
+# ==========================================================
+# ESCALATION CHARTS
+# ==========================================================
+
+def create_escalation_bar_chart(overdue_df):
+    """
+    Create a bar chart of escalation level distribution.
+
+    Colour-coded by severity from amber (Level 1) to
+    purple (Level 4).
+
+    Args:
+        overdue_df: DataFrame with 'Escalation_Level' column.
+
+    Returns:
+        plotly.graph_objects.Figure: Bar chart figure.
+    """
+
+    esc_counts = (
+        overdue_df["Escalation_Level"]
+        .value_counts()
+        .reset_index()
+    )
+    esc_counts.columns = ["Escalation Level", "Count"]
+
+    return px.bar(
+        esc_counts,
+        x="Escalation Level",
+        y="Count",
+        color="Escalation Level",
+        color_discrete_map=ESCALATION_COLOURS
+    )
+
+
+def create_overdue_timeline(overdue_df):
+    """
+    Create a horizontal bar chart of days overdue by risk.
+
+    Coloured by risk owner for easy identification.
+
+    Args:
+        overdue_df: DataFrame with Risk_ID, Risk_Name,
+            Due_Date, Days_Overdue, Risk_Owner columns.
+
+    Returns:
+        plotly.graph_objects.Figure: Horizontal bar chart.
+    """
+
+    timeline_df = overdue_df[
+        ["Risk_ID", "Risk_Name", "Due_Date",
+         "Days_Overdue", "Risk_Owner"]
+    ].copy()
+
+    fig = px.bar(
+        timeline_df,
+        x="Days_Overdue",
+        y="Risk_ID",
+        color="Risk_Owner",
+        orientation="h",
+        hover_data=["Risk_Name", "Due_Date"],
+        title="Days Overdue by Risk"
+    )
+
+    fig.update_layout(
+        yaxis_title="Risk ID",
+        xaxis_title="Days Overdue"
+    )
+
+    return fig
+
+
+# ==========================================================
+# MANAGEMENT REPORT CHARTS
+# ==========================================================
+
+def create_management_trend_chart(trend_df, target=80):
+    """
+    Create a compliance trend chart with target threshold line.
+
+    Used in the Monthly Management Report section. Includes
+    a dashed red target line for visual comparison.
+
+    Args:
+        trend_df: DataFrame with 'Month' and 'Score' columns.
+        target: Target compliance percentage. Defaults to 80.
+
+    Returns:
+        plotly.graph_objects.Figure: Trend chart with target line.
+    """
+
+    fig = go.Figure()
+
+    # Actual compliance scores
+    fig.add_trace(
+        go.Scatter(
+            x=trend_df["Month"],
+            y=trend_df["Score"],
+            mode="lines+markers",
+            name="Compliance Score",
+            line=dict(color="#1a237e", width=3),
+            marker=dict(size=8)
+        )
+    )
+
+    # Target threshold line
+    fig.add_hline(
+        y=target,
+        line_dash="dash",
+        line_color="red",
+        annotation_text=f"Target: {target}%"
+    )
+
+    fig.update_layout(
+        title="Compliance Score Trend vs Target",
+        yaxis_title="Score (%)",
+        xaxis_title="Month",
+        yaxis_range=[0, 100]
+    )
+
+    return fig
