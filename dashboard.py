@@ -1,25 +1,43 @@
 """
 GRC Compliance Dashboard
-Version: 2.0.1
+Version: 2.0.2
 Author: Taiwo Durodola-Tunde
+
+Release Notes:
+    v2.0.2 - Monthly Management Reports & Enhanced PDF Exports
+    v2.0.1 - Overdue Risk Escalation Tracking
+    v2.0.0 - Initial release with KPI dashboard
 """
 
 from datetime import datetime
 from io import BytesIO
 
+import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
-from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch, cm
 from reportlab.pdfgen import canvas
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Table,
+    TableStyle,
+    Paragraph,
+    Spacer,
+    PageBreak,
+    Image
+)
 
 
 # ==========================================================
 # CONFIGURATION
 # ==========================================================
 
-APP_VERSION = "2.0.1"
+APP_VERSION = "2.0.2"
 
 st.set_page_config(
     page_title="GRC Compliance Dashboard",
@@ -170,7 +188,6 @@ def calculate_escalation(risk_df):
     )
 
     # Apply conditions using numpy select
-    import numpy as np
     df["Escalation_Level"] = np.select(
         conditions,
         choices,
@@ -194,6 +211,18 @@ def generate_pdf(
     metrics,
     rating
 ):
+    """
+    Legacy PDF generator — produces a single-page executive summary.
+    Retained for backward compatibility with existing integrations.
+
+    Args:
+        compliance_score (float): Current compliance percentage.
+        metrics (dict): Dictionary containing open_risks, closed_risks, high_risks.
+        rating (str): Health rating string with emoji indicator.
+
+    Returns:
+        BytesIO: Buffer containing the generated PDF document.
+    """
 
     buffer = BytesIO()
 
@@ -225,7 +254,7 @@ def generate_pdf(
     pdf.drawString(
         50,
         720,
-        f"Generated: {datetime.now()}"
+        f"Generated: {datetime.now().strftime('%d %B %Y %H:%M')}"
     )
 
     pdf.drawString(
@@ -275,6 +304,721 @@ def generate_pdf(
     buffer.seek(0)
 
     return buffer
+
+
+def generate_enhanced_pdf(
+    compliance_score,
+    metrics,
+    rating,
+    risk_df,
+    controls_df,
+    escalated_df,
+    trend_df=None
+):
+    """
+    Enhanced multi-page PDF report for monthly management reporting.
+
+    Generates a comprehensive PDF including:
+        - Page 1: Executive Summary with KPIs and health rating
+        - Page 2: Risk Register breakdown by level and owner
+        - Page 3: Escalation Status with overdue risk details
+        - Page 4: Control Coverage and compliance trend analysis
+        - Page 5: Recommendations and next steps
+
+    Args:
+        compliance_score (float): Current compliance percentage.
+        metrics (dict): Dictionary with open_risks, closed_risks, high_risks counts.
+        rating (str): Health rating string (e.g. "Healthy", "Critical").
+        risk_df (DataFrame): Full risk register data.
+        controls_df (DataFrame): Control implementation data.
+        escalated_df (DataFrame): Risk data with escalation calculations applied.
+        trend_df (DataFrame, optional): Compliance history with Month and Score columns.
+
+    Returns:
+        BytesIO: Buffer containing the multi-page PDF document.
+    """
+
+    buffer = BytesIO()
+
+    # Document setup with professional margins
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=1.5 * cm,
+        leftMargin=1.5 * cm,
+        topMargin=2 * cm,
+        bottomMargin=2 * cm
+    )
+
+    # Stylesheet configuration
+    styles = getSampleStyleSheet()
+
+    # Custom styles for the report
+    styles.add(ParagraphStyle(
+        name="ReportTitle",
+        parent=styles["Title"],
+        fontSize=22,
+        spaceAfter=20,
+        textColor=colors.HexColor("#1a237e")
+    ))
+
+    styles.add(ParagraphStyle(
+        name="SectionHeader",
+        parent=styles["Heading2"],
+        fontSize=14,
+        spaceAfter=12,
+        spaceBefore=16,
+        textColor=colors.HexColor("#283593")
+    ))
+
+    styles.add(ParagraphStyle(
+        name="ReportBody",
+        parent=styles["Normal"],
+        fontSize=10,
+        spaceAfter=8,
+        leading=14
+    ))
+
+    styles.add(ParagraphStyle(
+        name="ReportFooter",
+        parent=styles["Normal"],
+        fontSize=8,
+        textColor=colors.grey
+    ))
+
+    # Build document elements
+    elements = []
+
+    # ======================================================
+    # PAGE 1: EXECUTIVE SUMMARY
+    # ======================================================
+
+    elements.append(
+        Paragraph(
+            "Monthly GRC Management Report",
+            styles["ReportTitle"]
+        )
+    )
+
+    elements.append(
+        Paragraph(
+            f"Report Period: {datetime.now().strftime('%B %Y')}",
+            styles["ReportBody"]
+        )
+    )
+
+    elements.append(
+        Paragraph(
+            f"Generated: {datetime.now().strftime('%d %B %Y %H:%M')}",
+            styles["ReportBody"]
+        )
+    )
+
+    elements.append(
+        Paragraph(
+            f"Dashboard Version: {APP_VERSION}",
+            styles["ReportBody"]
+        )
+    )
+
+    elements.append(Spacer(1, 0.5 * inch))
+
+    # Executive Summary Section
+    elements.append(
+        Paragraph(
+            "1. Executive Summary",
+            styles["SectionHeader"]
+        )
+    )
+
+    # Clean rating text (remove emoji for PDF)
+    rating_text = rating.replace(
+        "🟢 ", ""
+    ).replace(
+        "🟠 ", ""
+    ).replace(
+        "🔴 ", ""
+    )
+
+    elements.append(
+        Paragraph(
+            f"The current compliance posture is rated as "
+            f"<b>{rating_text}</b> with an overall score of "
+            f"<b>{compliance_score}%</b>.",
+            styles["ReportBody"]
+        )
+    )
+
+    elements.append(Spacer(1, 0.3 * inch))
+
+    # KPI Summary Table
+    kpi_data = [
+        ["Metric", "Value", "Status"],
+        [
+            "Compliance Score",
+            f"{compliance_score}%",
+            rating_text
+        ],
+        [
+            "Total Open Risks",
+            str(metrics["open_risks"]),
+            "Action Required" if metrics["open_risks"] > 0 else "Clear"
+        ],
+        [
+            "High Priority Risks",
+            str(metrics["high_risks"]),
+            "Critical" if metrics["high_risks"] > 3 else "Manageable"
+        ],
+        [
+            "Closed Risks",
+            str(metrics["closed_risks"]),
+            "Resolved"
+        ],
+        [
+            "Total Risks Tracked",
+            str(len(risk_df)),
+            "Active Monitoring"
+        ],
+    ]
+
+    kpi_table = Table(
+        kpi_data,
+        colWidths=[
+            2.5 * inch,
+            1.5 * inch,
+            2.0 * inch
+        ]
+    )
+
+    kpi_table.setStyle(TableStyle([
+        # Header row styling
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1a237e")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), 10),
+        # Body styling
+        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 1), (-1, -1), 9),
+        ("ALIGN", (1, 0), (1, -1), "CENTER"),
+        # Grid
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        # Alternating row colours
+        ("BACKGROUND", (0, 1), (-1, 1), colors.HexColor("#e8eaf6")),
+        ("BACKGROUND", (0, 3), (-1, 3), colors.HexColor("#e8eaf6")),
+        ("BACKGROUND", (0, 5), (-1, 5), colors.HexColor("#e8eaf6")),
+        # Padding
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
+
+    elements.append(kpi_table)
+
+    # ======================================================
+    # PAGE 2: RISK REGISTER BREAKDOWN
+    # ======================================================
+
+    elements.append(PageBreak())
+
+    elements.append(
+        Paragraph(
+            "2. Risk Register Analysis",
+            styles["SectionHeader"]
+        )
+    )
+
+    elements.append(
+        Paragraph(
+            "The following table summarises the current risk register "
+            "by owner and severity level.",
+            styles["ReportBody"]
+        )
+    )
+
+    elements.append(Spacer(1, 0.3 * inch))
+
+    # Risk by Owner Table
+    owner_agg = (
+        risk_df.groupby("Risk_Owner")
+        .agg(
+            Total=("Risk_ID", "count"),
+            High=("Risk_Level", lambda x: (x == "High").sum()),
+            Medium=("Risk_Level", lambda x: (x == "Medium").sum()),
+            Low=("Risk_Level", lambda x: (x == "Low").sum()),
+            Open=("Status", lambda x: (x == "Open").sum()),
+            Closed=("Status", lambda x: (x == "Closed").sum()),
+        )
+        .reset_index()
+    )
+
+    risk_table_data = [
+        ["Risk Owner", "Total", "High", "Medium", "Low", "Open", "Closed"]
+    ]
+
+    for _, row in owner_agg.iterrows():
+        risk_table_data.append([
+            str(row["Risk_Owner"]),
+            str(row["Total"]),
+            str(row["High"]),
+            str(row["Medium"]),
+            str(row["Low"]),
+            str(row["Open"]),
+            str(row["Closed"]),
+        ])
+
+    risk_table = Table(
+        risk_table_data,
+        colWidths=[
+            2.0 * inch,
+            0.7 * inch,
+            0.7 * inch,
+            0.9 * inch,
+            0.7 * inch,
+            0.7 * inch,
+            0.8 * inch
+        ]
+    )
+
+    risk_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#c62828")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), 9),
+        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 1), (-1, -1), 8),
+        ("ALIGN", (1, 0), (-1, -1), "CENTER"),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+    ]))
+
+    elements.append(risk_table)
+
+    elements.append(Spacer(1, 0.4 * inch))
+
+    # Risk Level Summary
+    elements.append(
+        Paragraph(
+            "2.1 Risk Level Distribution",
+            styles["SectionHeader"]
+        )
+    )
+
+    level_summary = risk_df["Risk_Level"].value_counts()
+
+    for level in ["High", "Medium", "Low"]:
+        count = level_summary.get(level, 0)
+        elements.append(
+            Paragraph(
+                f"<b>{level}:</b> {count} risks "
+                f"({round(count / len(risk_df) * 100, 1)}% of total)",
+                styles["ReportBody"]
+            )
+        )
+
+    # ======================================================
+    # PAGE 3: ESCALATION STATUS
+    # ======================================================
+
+    elements.append(PageBreak())
+
+    elements.append(
+        Paragraph(
+            "3. Escalation Status Report",
+            styles["SectionHeader"]
+        )
+    )
+
+    # Overdue risks summary
+    overdue_risks = escalated_df[
+        escalated_df["Is_Overdue"] == True
+    ]
+
+    total_overdue = len(overdue_risks)
+
+    elements.append(
+        Paragraph(
+            f"There are currently <b>{total_overdue}</b> overdue risks "
+            f"requiring escalation action.",
+            styles["ReportBody"]
+        )
+    )
+
+    elements.append(Spacer(1, 0.2 * inch))
+
+    if total_overdue > 0:
+
+        # Escalation breakdown table
+        esc_table_data = [
+            ["Risk ID", "Risk Name", "Owner", "Days Overdue", "Escalation"]
+        ]
+
+        for _, row in overdue_risks.sort_values(
+            "Days_Overdue", ascending=False
+        ).iterrows():
+            esc_table_data.append([
+                str(row["Risk_ID"]),
+                str(row["Risk_Name"])[:30],
+                str(row["Risk_Owner"])[:20],
+                str(int(row["Days_Overdue"])),
+                str(row["Escalation_Level"]).replace(
+                    "Level ", "L"
+                )[:25],
+            ])
+
+        esc_table = Table(
+            esc_table_data,
+            colWidths=[
+                0.8 * inch,
+                2.0 * inch,
+                1.5 * inch,
+                1.0 * inch,
+                1.8 * inch
+            ]
+        )
+
+        esc_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e65100")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, 0), 9),
+            ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+            ("FONTSIZE", (0, 1), (-1, -1), 8),
+            ("ALIGN", (3, 0), (3, -1), "CENTER"),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+
+        elements.append(esc_table)
+
+    else:
+        elements.append(
+            Paragraph(
+                "No overdue risks at this time. All open risks "
+                "are within their remediation deadlines.",
+                styles["ReportBody"]
+            )
+        )
+
+    # ======================================================
+    # PAGE 4: CONTROL COVERAGE & COMPLIANCE TREND
+    # ======================================================
+
+    elements.append(PageBreak())
+
+    elements.append(
+        Paragraph(
+            "4. Control Coverage & Compliance Trend",
+            styles["SectionHeader"]
+        )
+    )
+
+    # Control status breakdown
+    elements.append(
+        Paragraph(
+            "4.1 ISO 27001 Control Implementation Status",
+            styles["SectionHeader"]
+        )
+    )
+
+    control_counts = controls_df["Status"].value_counts()
+    total_controls = len(controls_df)
+
+    ctrl_table_data = [
+        ["Control Status", "Count", "Percentage"]
+    ]
+
+    for status in ["Implemented", "In Progress", "Planned"]:
+        count = control_counts.get(status, 0)
+        pct = round(count / total_controls * 100, 1) if total_controls > 0 else 0
+        ctrl_table_data.append([
+            status,
+            str(count),
+            f"{pct}%"
+        ])
+
+    ctrl_table = Table(
+        ctrl_table_data,
+        colWidths=[2.0 * inch, 1.5 * inch, 1.5 * inch]
+    )
+
+    ctrl_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2e7d32")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), 10),
+        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 1), (-1, -1), 9),
+        ("ALIGN", (1, 0), (-1, -1), "CENTER"),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
+
+    elements.append(ctrl_table)
+
+    elements.append(Spacer(1, 0.4 * inch))
+
+    # Compliance Trend (if available)
+    elements.append(
+        Paragraph(
+            "4.2 Compliance Score Trend",
+            styles["SectionHeader"]
+        )
+    )
+
+    if trend_df is not None and not trend_df.empty:
+
+        trend_table_data = [["Month", "Score (%)", "Movement"]]
+
+        prev_score = None
+
+        for _, row in trend_df.iterrows():
+            score = row["Score"]
+            if prev_score is not None:
+                movement = score - prev_score
+                movement_str = (
+                    f"+{movement}" if movement > 0
+                    else str(movement)
+                )
+            else:
+                movement_str = "-"
+
+            trend_table_data.append([
+                str(row["Month"]),
+                str(score),
+                movement_str
+            ])
+
+            prev_score = score
+
+        trend_table = Table(
+            trend_table_data,
+            colWidths=[1.5 * inch, 1.5 * inch, 1.5 * inch]
+        )
+
+        trend_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1565c0")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, 0), 10),
+            ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+            ("FONTSIZE", (0, 1), (-1, -1), 9),
+            ("ALIGN", (1, 0), (-1, -1), "CENTER"),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ]))
+
+        elements.append(trend_table)
+
+    else:
+        elements.append(
+            Paragraph(
+                "Compliance trend data not available for this period.",
+                styles["ReportBody"]
+            )
+        )
+
+    # ======================================================
+    # PAGE 5: RECOMMENDATIONS & SIGN-OFF
+    # ======================================================
+
+    elements.append(PageBreak())
+
+    elements.append(
+        Paragraph(
+            "5. Recommendations & Next Steps",
+            styles["SectionHeader"]
+        )
+    )
+
+    # Generate dynamic recommendations based on data
+    recommendations = []
+
+    if metrics["high_risks"] > 0:
+        recommendations.append(
+            f"Prioritise remediation of {metrics['high_risks']} "
+            f"high-severity risks currently in the register."
+        )
+
+    if total_overdue > 0:
+        recommendations.append(
+            f"Escalate {total_overdue} overdue risk(s) to the "
+            f"appropriate governance forum for immediate action."
+        )
+
+    if compliance_score < 80:
+        recommendations.append(
+            "Target 80% compliance threshold by accelerating "
+            "control implementation for In Progress and Planned items."
+        )
+
+    planned_controls = control_counts.get("Planned", 0)
+    if planned_controls > 0:
+        recommendations.append(
+            f"Initiate implementation planning for {planned_controls} "
+            f"controls currently in 'Planned' status."
+        )
+
+    if not recommendations:
+        recommendations.append(
+            "Maintain current compliance posture and continue "
+            "monitoring risk register for emerging threats."
+        )
+
+    for i, rec in enumerate(recommendations, 1):
+        elements.append(
+            Paragraph(
+                f"{i}. {rec}",
+                styles["ReportBody"]
+            )
+        )
+
+    elements.append(Spacer(1, 0.5 * inch))
+
+    # Sign-off section
+    elements.append(
+        Paragraph(
+            "6. Report Sign-Off",
+            styles["SectionHeader"]
+        )
+    )
+
+    signoff_data = [
+        ["Role", "Name", "Date", "Signature"],
+        ["Report Author", "", datetime.now().strftime("%d/%m/%Y"), ""],
+        ["Reviewed By", "", "", ""],
+        ["Approved By", "", "", ""],
+    ]
+
+    signoff_table = Table(
+        signoff_data,
+        colWidths=[1.5 * inch, 2.0 * inch, 1.2 * inch, 1.8 * inch]
+    )
+
+    signoff_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#37474f")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), 9),
+        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 1), (-1, -1), 9),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ("TOPPADDING", (0, 0), (-1, -1), 10),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+    ]))
+
+    elements.append(signoff_table)
+
+    elements.append(Spacer(1, 0.5 * inch))
+
+    # Footer
+    elements.append(
+        Paragraph(
+            "CONFIDENTIAL - For internal governance use only.",
+            styles["ReportFooter"]
+        )
+    )
+
+    elements.append(
+        Paragraph(
+            f"Generated by GRC Compliance Dashboard v{APP_VERSION}",
+            styles["ReportFooter"]
+        )
+    )
+
+    # Build the PDF document
+    doc.build(elements)
+
+    buffer.seek(0)
+
+    return buffer
+
+
+def generate_monthly_summary(
+    compliance_score,
+    metrics,
+    rating,
+    risk_df,
+    escalated_df,
+    trend_df=None
+):
+    """
+    Generates a structured monthly management summary dictionary.
+
+    This function compiles all key governance metrics into a single
+    summary object used for both the dashboard display and report
+    generation.
+
+    Args:
+        compliance_score (float): Current compliance percentage.
+        metrics (dict): Risk count metrics.
+        rating (str): Health rating string.
+        risk_df (DataFrame): Full risk register.
+        escalated_df (DataFrame): Risks with escalation data.
+        trend_df (DataFrame, optional): Historical compliance scores.
+
+    Returns:
+        dict: Comprehensive monthly summary with all key metrics.
+    """
+
+    # Calculate month-over-month change
+    mom_change = 0.0
+
+    if trend_df is not None and len(trend_df) >= 2:
+        current_score = trend_df["Score"].iloc[-1]
+        previous_score = trend_df["Score"].iloc[-2]
+        mom_change = current_score - previous_score
+
+    # Overdue analysis
+    overdue_risks = escalated_df[
+        escalated_df["Is_Overdue"] == True
+    ]
+
+    # Calculate average days overdue
+    avg_days_overdue = (
+        overdue_risks["Days_Overdue"].mean()
+        if not overdue_risks.empty else 0
+    )
+
+    # Build summary structure
+    summary = {
+        "report_period": datetime.now().strftime("%B %Y"),
+        "generated_at": datetime.now().strftime(
+            "%d %B %Y %H:%M"
+        ),
+        "compliance": {
+            "score": compliance_score,
+            "rating": rating,
+            "month_over_month_change": mom_change,
+            "target": 80.0,
+            "gap_to_target": max(
+                0, 80.0 - compliance_score
+            ),
+        },
+        "risks": {
+            "total": len(risk_df),
+            "open": metrics["open_risks"],
+            "closed": metrics["closed_risks"],
+            "high": metrics["high_risks"],
+            "closure_rate": round(
+                metrics["closed_risks"] / len(risk_df) * 100, 1
+            ) if len(risk_df) > 0 else 0,
+        },
+        "escalation": {
+            "total_overdue": len(overdue_risks),
+            "avg_days_overdue": round(avg_days_overdue, 1),
+            "max_days_overdue": int(
+                overdue_risks["Days_Overdue"].max()
+            ) if not overdue_risks.empty else 0,
+            "escalation_rate": round(
+                len(overdue_risks) / len(escalated_df) * 100, 1
+            ) if len(escalated_df) > 0 else 0,
+        },
+    }
+
+    return summary
 
 
 # ==========================================================
@@ -941,34 +1685,235 @@ st.caption(
 
 
 # ==========================================================
-# EXPORTS
+# MONTHLY MANAGEMENT REPORT
 # ==========================================================
 
 st.subheader(
-    "Exports"
+    "📊 Monthly Management Report"
 )
 
-st.download_button(
-    "📥 Download CSV",
-    filtered_risk_df.to_csv(
-        index=False
-    ),
-    "risk_register_export.csv",
-    "text/csv"
+st.markdown(
+    """
+    This section provides a comprehensive monthly overview
+    for senior management and governance committees. Use the
+    enhanced PDF export below to generate the full report.
+    """
 )
 
-pdf_buffer = generate_pdf(
+# Load trend data for monthly analysis
+try:
+    trend_df = load_compliance_history()
+except Exception:
+    trend_df = None
+
+# Generate monthly summary metrics
+monthly_summary = generate_monthly_summary(
     compliance_score,
     metrics,
-    rating
+    rating,
+    filtered_risk_df,
+    escalated_df,
+    trend_df
 )
 
-st.download_button(
-    "📄 Download PDF",
-    pdf_buffer,
-    "executive_report.pdf",
-    "application/pdf"
+# Monthly Report KPI Row
+mgmt_c1, mgmt_c2, mgmt_c3, mgmt_c4 = st.columns(4)
+
+mgmt_c1.metric(
+    "Compliance Score",
+    f"{monthly_summary['compliance']['score']}%",
+    delta=f"{monthly_summary['compliance']['month_over_month_change']:+.0f}% MoM"
 )
+
+mgmt_c2.metric(
+    "Risk Closure Rate",
+    f"{monthly_summary['risks']['closure_rate']}%"
+)
+
+mgmt_c3.metric(
+    "Escalation Rate",
+    f"{monthly_summary['escalation']['escalation_rate']}%"
+)
+
+mgmt_c4.metric(
+    "Gap to Target (80%)",
+    f"{monthly_summary['compliance']['gap_to_target']}%"
+)
+
+# Month-over-Month Analysis
+st.markdown("#### Month-over-Month Analysis")
+
+mgmt_left, mgmt_right = st.columns(2)
+
+with mgmt_left:
+
+    if trend_df is not None and not trend_df.empty:
+
+        # Compliance trend with target line
+        trend_fig = go.Figure()
+
+        # Actual compliance scores
+        trend_fig.add_trace(
+            go.Scatter(
+                x=trend_df["Month"],
+                y=trend_df["Score"],
+                mode="lines+markers",
+                name="Compliance Score",
+                line=dict(
+                    color="#1a237e",
+                    width=3
+                ),
+                marker=dict(size=8)
+            )
+        )
+
+        # Target threshold line
+        trend_fig.add_hline(
+            y=80,
+            line_dash="dash",
+            line_color="red",
+            annotation_text="Target: 80%"
+        )
+
+        trend_fig.update_layout(
+            title="Compliance Score Trend vs Target",
+            yaxis_title="Score (%)",
+            xaxis_title="Month",
+            yaxis_range=[0, 100]
+        )
+
+        st.plotly_chart(
+            trend_fig,
+            use_container_width=True,
+            key="mgmt_trend"
+        )
+
+    else:
+        st.info(
+            "Compliance trend data not available."
+        )
+
+with mgmt_right:
+
+    # Management summary card
+    st.markdown(
+        f"""
+**Report Period:** {monthly_summary['report_period']}
+
+**Overall Position:** {monthly_summary['compliance']['rating']}
+
+---
+
+| Metric | Value |
+|--------|-------|
+| Total Risks | {monthly_summary['risks']['total']} |
+| Open Risks | {monthly_summary['risks']['open']} |
+| High Risks | {monthly_summary['risks']['high']} |
+| Overdue Risks | {monthly_summary['escalation']['total_overdue']} |
+| Avg Days Overdue | {monthly_summary['escalation']['avg_days_overdue']} |
+| Max Days Overdue | {monthly_summary['escalation']['max_days_overdue']} |
+
+---
+
+**Key Actions Required:**
+"""
+    )
+
+    # Dynamic recommendations
+    if monthly_summary["escalation"]["total_overdue"] > 0:
+        st.warning(
+            f"⚠️ {monthly_summary['escalation']['total_overdue']} "
+            f"risk(s) require escalation action."
+        )
+
+    if monthly_summary["compliance"]["gap_to_target"] > 0:
+        st.warning(
+            f"📈 {monthly_summary['compliance']['gap_to_target']}% "
+            f"improvement needed to reach 80% target."
+        )
+
+    if monthly_summary["risks"]["high"] > 3:
+        st.error(
+            f"🔴 {monthly_summary['risks']['high']} high-severity "
+            f"risks exceed acceptable threshold."
+        )
+
+    if (
+        monthly_summary["escalation"]["total_overdue"] == 0
+        and monthly_summary["compliance"]["gap_to_target"] == 0
+    ):
+        st.success(
+            "✅ All governance indicators within acceptable limits."
+        )
+
+
+# ==========================================================
+# EXPORTS (ENHANCED)
+# ==========================================================
+
+st.subheader(
+    "📥 Exports"
+)
+
+st.markdown(
+    """
+    Download reports in CSV or PDF format. The **Enhanced PDF**
+    includes a full multi-page management report with executive
+    summary, risk breakdown, escalation status, control coverage,
+    and recommendations.
+    """
+)
+
+export_c1, export_c2, export_c3 = st.columns(3)
+
+with export_c1:
+
+    # CSV Export
+    st.download_button(
+        "📥 Risk Register (CSV)",
+        filtered_risk_df.to_csv(index=False),
+        "risk_register_export.csv",
+        "text/csv",
+        key="csv_export"
+    )
+
+with export_c2:
+
+    # Legacy single-page PDF
+    legacy_pdf = generate_pdf(
+        compliance_score,
+        metrics,
+        rating
+    )
+
+    st.download_button(
+        "📄 Quick Summary (PDF)",
+        legacy_pdf,
+        "executive_summary.pdf",
+        "application/pdf",
+        key="legacy_pdf_export"
+    )
+
+with export_c3:
+
+    # Enhanced multi-page PDF report
+    enhanced_pdf = generate_enhanced_pdf(
+        compliance_score=compliance_score,
+        metrics=metrics,
+        rating=rating,
+        risk_df=filtered_risk_df,
+        controls_df=controls_df,
+        escalated_df=escalated_df,
+        trend_df=trend_df
+    )
+
+    st.download_button(
+        "📑 Full Management Report (PDF)",
+        enhanced_pdf,
+        f"grc_management_report_{datetime.now().strftime('%Y_%m')}.pdf",
+        "application/pdf",
+        key="enhanced_pdf_export"
+    )
 
 # ==========================================================
 # RISK OWNER EMAIL DIRECTORY
