@@ -120,10 +120,18 @@ class OutlookDispatcher:
         This uses the existing authenticated Outlook session.
         No credentials are passed — the connection inherits
         the user's Windows security context.
+
+        Note: COM must be initialised per-thread. Streamlit
+        runs scripts in worker threads, so we call
+        CoInitialize() explicitly before Dispatch.
         """
 
         try:
+            import pythoncom
             import win32com.client
+
+            # Initialise COM for this thread (required in Streamlit)
+            pythoncom.CoInitialize()
 
             self._outlook = win32com.client.Dispatch(
                 "Outlook.Application"
