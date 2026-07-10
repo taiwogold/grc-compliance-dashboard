@@ -22,23 +22,18 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
+from .theme import (
+    RISK_LEVEL_COLOURS,
+    ESCALATION_COLOURS,
+    SCORE_BAND_COLOURS,
+    get_theme,
+    apply_chart_theme,
+)
+
 
 # ==========================================================
-# COLOUR PALETTES
+# COLOUR PALETTES (imported from theme module)
 # ==========================================================
-
-RISK_LEVEL_COLOURS = {
-    "High": "#dc3545",
-    "Medium": "#ffc107",
-    "Low": "#198754",
-}
-
-ESCALATION_COLOURS = {
-    "Level 1 - Owner Reminder": "#ffc107",
-    "Level 2 - Manager Escalation": "#fd7e14",
-    "Level 3 - Director Escalation": "#dc3545",
-    "Level 4 - Executive Escalation": "#6f42c1",
-}
 
 
 # ==========================================================
@@ -233,7 +228,7 @@ def create_overdue_timeline(overdue_df):
 # MANAGEMENT REPORT CHARTS
 # ==========================================================
 
-def create_management_trend_chart(trend_df, target=80):
+def create_management_trend_chart(trend_df, target=80, theme_name="light"):
     """
     Create a compliance trend chart with target threshold line.
 
@@ -243,10 +238,13 @@ def create_management_trend_chart(trend_df, target=80):
     Args:
         trend_df: DataFrame with 'Month' and 'Score' columns.
         target: Target compliance percentage. Defaults to 80.
+        theme_name: Active theme name for colour styling.
 
     Returns:
         plotly.graph_objects.Figure: Trend chart with target line.
     """
+
+    theme = get_theme(theme_name)
 
     fig = go.Figure()
 
@@ -257,7 +255,7 @@ def create_management_trend_chart(trend_df, target=80):
             y=trend_df["Score"],
             mode="lines+markers",
             name="Compliance Score",
-            line=dict(color="#1a237e", width=3),
+            line=dict(color=theme["trend_line_color"], width=3),
             marker=dict(size=8)
         )
     )
@@ -277,6 +275,9 @@ def create_management_trend_chart(trend_df, target=80):
         yaxis_range=[0, 100]
     )
 
+    # Apply theme
+    apply_chart_theme(fig, theme)
+
     return fig
 
 
@@ -284,13 +285,6 @@ def create_management_trend_chart(trend_df, target=80):
 # ==========================================================
 # RISK SCORING CHARTS
 # ==========================================================
-
-SCORE_BAND_COLOURS = {
-    "Critical": "#6f42c1",
-    "High": "#dc3545",
-    "Medium": "#ffc107",
-    "Low": "#198754",
-}
 
 
 def create_score_distribution_chart(scored_df):

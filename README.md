@@ -1,6 +1,6 @@
 # 🛡️ GRC Compliance Dashboard
 
-A production-grade Governance, Risk & Compliance dashboard built with Python, Streamlit and Plotly. Delivers real-time visibility into risk posture, compliance metrics, ISO 27001 control effectiveness, escalation tracking, and automated remediation workflows.
+A production-grade Governance, Risk & Compliance dashboard built with Python, Streamlit and Plotly. Delivers real-time visibility into risk posture, compliance metrics, ISO 27001 control effectiveness, escalation tracking, automated remediation workflows, and intelligent alerting.
 
 Designed for Cyber Security Governance & Assurance teams to provide executive-level reporting, reduce manual administration, and drive accountability across risk owners.
 
@@ -8,23 +8,24 @@ Designed for Cyber Security Governance & Assurance teams to provide executive-le
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.59-red?logo=streamlit&logoColor=white)
 ![Plotly](https://img.shields.io/badge/Plotly-6.8-purple?logo=plotly&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Version](https://img.shields.io/badge/Version-2.1.1-orange)
+![Version](https://img.shields.io/badge/Version-2.2.0-orange)
 
 ---
 
 ## Overview
 
-This project transforms raw risk and compliance data into actionable executive reporting through interactive dashboards, automated email dispatch, and professional PDF management reports.
+This project transforms raw risk and compliance data into actionable executive reporting through interactive dashboards, intelligent alerting, automated email dispatch, and professional PDF management reports.
 
 **What it enables:**
 
 - Real-time compliance posture monitoring with RAG health rating
-- Risk register management with severity categorisation and owner tracking
-- Automated overdue risk escalation with tiered severity levels
+- Quantitative risk scoring with weighted formula
+- Automated threshold alerts surfaced at the top of the dashboard
+- Risk history tracking with daily SQLite snapshots and delta analysis
 - One-click Outlook email dispatch to risk owners (zero stored credentials)
 - Multi-page PDF management reports with sign-off sections
-- Month-over-month trend analysis with target threshold tracking
-- ISO 27001 control coverage visualisation
+- Full audit trail for governance evidence
+- Dark mode toggle for presentations and personal preference
 
 ---
 
@@ -51,15 +52,24 @@ grc-compliance-dashboard/
 │   ├── metrics.py               # Compliance scoring, escalation logic
 │   ├── charts.py                # All Plotly chart generation
 │   ├── pdf_generator.py         # Legacy + enhanced PDF reports
-│   └── email_dispatcher.py      # Secure Outlook COM integration
+│   ├── email_dispatcher.py      # Secure Outlook COM integration
+│   ├── risk_scoring.py          # Quantitative risk scoring engine
+│   ├── database.py              # SQLite history & snapshot storage
+│   ├── audit_trail.py           # Action logging for governance evidence
+│   ├── alerts.py                # Threshold detection & notifications
+│   └── theme.py                 # Light/dark mode theming
 │
 ├── data/
 │   ├── risk_register.csv        # Risk register source data
 │   ├── controls.csv             # ISO 27001 control matrix
-│   └── compliance_history.csv   # Monthly compliance scores
+│   ├── compliance_history.csv   # Monthly compliance scores
+│   └── grc_history.db           # SQLite snapshot & audit database
 │
 ├── logs/
 │   └── email_audit.csv          # Email dispatch audit trail
+│
+├── .streamlit/
+│   └── config.toml              # Streamlit theme configuration
 │
 ├── assets/
 │   └── banner.png               # Optional dashboard banner
@@ -69,7 +79,7 @@ grc-compliance-dashboard/
 └── README.md
 ```
 
-The application follows a **modular architecture** — `dashboard.py` is a thin orchestration layer (~480 lines) that imports all business logic from purpose-built utility modules. Each module is independently testable and maintainable.
+The application follows a **modular architecture** — `dashboard.py` is a thin orchestration layer that imports all business logic from purpose-built utility modules. Each module is independently testable and maintainable.
 
 ---
 
@@ -87,6 +97,49 @@ The application follows a **modular architecture** — `dashboard.py` is a thin 
 | **Risk Owner Summary** | Aggregated view by team with open/high counts |
 | **Interactive Filters** | Sidebar filtering by risk owner |
 | **CSV Upload** | Upload custom risk register data on-the-fly |
+| **Dark Mode** | Toggle between light and dark themes |
+
+### Risk Scoring Engine (v2.2.0)
+
+| Feature | Description |
+|---------|-------------|
+| **Weighted Formula** | Score = (Likelihood × Impact) × Overdue Modifier × Control Modifier |
+| **Overdue Penalty** | Risks penalised up to 2× base score based on days overdue |
+| **Control Credit** | Implemented controls reduce score by 50% |
+| **Score Bands** | Critical (≥15), High (≥10), Medium (≥5), Low (<5) |
+| **Top 5 Risks** | Executive widget showing highest-scored risks |
+| **Distribution Chart** | Bar chart of score band breakdown |
+
+### Trend Alerts & Notifications (v2.2.0)
+
+| Feature | Description |
+|---------|-------------|
+| **Compliance Alert** | Triggered when score drops below 75% |
+| **High Risk Alert** | Triggered when high risks exceed 3 |
+| **Executive Escalation** | CRITICAL alert for any Level 4 escalation |
+| **Trend Detection** | Warns when open risks increase vs last snapshot |
+| **Closure Rate** | Info alert when closure rate falls below 20% |
+| **Severity Sorting** | CRITICAL → WARNING → INFO display order |
+
+### Risk History & Snapshots (v2.2.0)
+
+| Feature | Description |
+|---------|-------------|
+| **Daily Snapshots** | Automatic point-in-time capture (one per day) |
+| **SQLite Storage** | Persistent local database in `data/grc_history.db` |
+| **Delta Analysis** | Compare current state vs previous snapshot |
+| **Individual Tracking** | View how any risk evolved over time |
+| **Score Trends** | Line chart showing risk score movement |
+
+### Audit Trail (v2.2.0)
+
+| Feature | Description |
+|---------|-------------|
+| **Action Logging** | Records loads, uploads, emails, exports |
+| **SQLite Storage** | Persistent, queryable, indexed |
+| **Filterable View** | Filter by action type in dashboard |
+| **CSV Export** | Download full trail for compliance evidence |
+| **Session Aware** | Avoids duplicate load entries |
 
 ### Compliance & Controls
 
@@ -124,15 +177,22 @@ The application follows a **modular architecture** — `dashboard.py` is a thin 
 | **Individual Reminders** | Select owner → preview → confirm → send |
 | **Bulk Dispatch** | One-click to notify all overdue risk owners |
 | **Rate Limiting** | Max 20 emails per session (configurable) |
-| **Audit Trail** | Every dispatch logged to `logs/email_audit.csv` |
+| **Audit Trail** | Every dispatch logged |
 | **Input Validation** | Email format checks, injection prevention |
 | **Confirmation Required** | Checkbox + button before any dispatch |
+
+### Dark Mode (v2.2.0)
+
+| Feature | Description |
+|---------|-------------|
+| **Sidebar Toggle** | One-click light/dark switch |
+| **Custom CSS Injection** | Backgrounds, cards, borders all theme-aware |
+| **Chart Theming** | Plotly charts adapt to active theme |
+| **Presentation Ready** | Dark mode ideal for board room displays |
 
 ---
 
 ## Security Design
-
-The email integration was built with a security-first mindset:
 
 | Control | Implementation |
 |---------|---------------|
@@ -141,7 +201,7 @@ The email integration was built with a security-first mindset:
 | Rate limiting | Session-based cap prevents accidental mass-mailing |
 | Input validation | Email format validation, injection char blocking |
 | Content sanitisation | Null byte removal, dangerous character filtering |
-| Audit logging | Timestamped CSV log of every dispatch attempt |
+| Audit logging | Timestamped log of every dispatch and action |
 | Explicit confirmation | Double-confirmation UI before send |
 | No hidden recipients | Individual emails only (no BCC) |
 
@@ -187,6 +247,7 @@ streamlit run dashboard.py
 | **Frontend** | Streamlit |
 | **Data Processing** | Pandas, NumPy |
 | **Visualisation** | Plotly Express, Plotly Graph Objects |
+| **Database** | SQLite (risk history, audit trail) |
 | **PDF Generation** | ReportLab (SimpleDocTemplate, Tables, Styles) |
 | **Email Dispatch** | pywin32 (Outlook COM automation) |
 | **Version Control** | Git, GitHub |
@@ -197,7 +258,8 @@ streamlit run dashboard.py
 
 | Version | Release | Features |
 |---------|---------|----------|
-| **v2.1.1** | Current | Modular refactor — extracted utils package |
+| **v2.2.0** | Current | Risk scoring, SQLite history, audit trail, trend alerts, dark mode |
+| **v2.1.1** | ✅ | Modular refactor — extracted utils package |
 | **v2.1.0** | ✅ | Outlook integration, automated reminder dispatch |
 | **v2.0.2** | ✅ | Monthly management reports, enhanced PDF exports |
 | **v2.0.1** | ✅ | Overdue risk escalation tracking, due date logic |
@@ -209,17 +271,10 @@ streamlit run dashboard.py
 
 ## Roadmap
 
-### v2.2.0 — Planned
-
-- [ ] Microsoft Teams webhook notifications
-- [ ] Risk history tracking (point-in-time snapshots)
-- [ ] Configurable escalation thresholds
-- [ ] Dashboard theming (dark/light mode)
-
 ### v3.0.0 — Enterprise
 
 - [ ] User authentication (Azure AD / SSO)
-- [ ] SQL database backend (SQLite → PostgreSQL)
+- [ ] SQL database backend (PostgreSQL)
 - [ ] Role-based access control (RBAC)
 - [ ] Full audit trail with user attribution
 - [ ] Power BI integration
@@ -227,6 +282,7 @@ streamlit run dashboard.py
 - [ ] Vulnerability data ingestion
 - [ ] Multi-department reporting
 - [ ] Compliance framework selector (ISO 27001, NIST, CIS)
+- [ ] Microsoft Teams webhook notifications
 
 ---
 
@@ -238,14 +294,14 @@ streamlit run dashboard.py
 - Compliance status reviews and board packs
 
 **Security Risk Management**
-- Risk heat mapping for prioritisation
+- Risk heat mapping and quantitative scoring
 - Remediation tracking and escalation
-- Trend analysis for emerging threats
+- Trend analysis with proactive alerting
 
 **Audit & Compliance**
 - ISO 27001 control coverage reporting
-- Audit action tracking with due dates
-- Compliance score measurement over time
+- Full audit trail for evidence packs
+- Point-in-time risk snapshots for audit review
 
 **Leadership Reporting**
 - Executive dashboards with RAG indicators
@@ -258,18 +314,20 @@ streamlit run dashboard.py
 
 - **Governance, Risk & Compliance (GRC)** — risk register design, escalation frameworks, compliance scoring
 - **Cyber Security Assurance** — ISO 27001 mapping, control effectiveness, remediation tracking
-- **Python Engineering** — modular architecture, clean code, type hints, docstrings
-- **Data Visualisation** — interactive Plotly charts, heatmaps, trend analysis
+- **Python Engineering** — modular architecture, clean code, type hints, docstrings, dataclasses
+- **Data Engineering** — SQLite databases, snapshot history, delta analysis
+- **Data Visualisation** — interactive Plotly charts, heatmaps, theme-aware styling
 - **Automation** — Outlook COM integration, PDF generation, bulk workflows
 - **Security Engineering** — zero-credential design, input validation, audit trails
-- **Software Architecture** — separation of concerns, utility modules, package design
-- **Version Control** — semantic versioning, iterative releases, Git workflow
+- **Software Architecture** — separation of concerns, 10+ utility modules, package design
+- **UX Design** — dark mode, proactive alerts, executive-focused layouts
+- **Version Control** — semantic versioning, iterative releases, clean Git workflow
 
 ---
 
 ## Resume Statement
 
-> Designed and engineered a production-grade GRC compliance dashboard using Python, Streamlit, and Plotly — delivering real-time risk posture visibility, ISO 27001 control coverage, automated overdue escalation tracking, and secure Outlook email dispatch to risk owners. Implemented a modular architecture with professional PDF management reporting, month-over-month trend analysis, and a security-first email integration requiring zero stored credentials. Built iteratively across 7 releases using semantic versioning and clean separation of concerns.
+> Designed and engineered a production-grade GRC compliance dashboard using Python, Streamlit, and Plotly — delivering real-time risk posture visibility, quantitative risk scoring, intelligent threshold alerting, ISO 27001 control coverage, and secure Outlook email dispatch. Implemented SQLite-backed risk history with daily snapshots, a full governance audit trail, and a modular architecture across 10+ utility modules. Features dark/light theming, multi-page PDF management reports, and automated bulk communications — all built with a zero-credential security model across 9 iterative releases.
 
 ---
 

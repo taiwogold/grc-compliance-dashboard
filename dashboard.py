@@ -1,6 +1,6 @@
 """
 GRC Compliance Dashboard
-Version: 2.1.1
+Version: 2.2.0
 Author: Taiwo Durodola-Tunde
 
 Main application file — handles layout, UI components, and
@@ -85,6 +85,11 @@ from utils import (
     get_today_actions,
     # Alerts
     evaluate_alerts,
+    # Theme
+    get_theme,
+    apply_chart_theme,
+    get_available_themes,
+    get_custom_css,
 )
 
 
@@ -92,7 +97,7 @@ from utils import (
 # CONFIGURATION
 # ==========================================================
 
-APP_VERSION = "2.2.0-alpha.4"
+APP_VERSION = "2.2.0"
 
 # Set version in PDF module
 set_version(APP_VERSION)
@@ -101,6 +106,19 @@ st.set_page_config(
     page_title="GRC Compliance Dashboard",
     layout="wide"
 )
+
+# --- Theme Selection ---
+st.sidebar.header("🎨 Theme")
+theme_choice = st.sidebar.toggle(
+    "Dark Mode",
+    value=False,
+    key="dark_mode_toggle"
+)
+active_theme_name = "dark" if theme_choice else "light"
+active_theme = get_theme(active_theme_name)
+
+# Apply custom CSS for the selected theme
+st.markdown(get_custom_css(active_theme), unsafe_allow_html=True)
 
 # Optional Banner
 try:
@@ -732,7 +750,7 @@ mgmt_left, mgmt_right = st.columns(2)
 
 with mgmt_left:
     if trend_df is not None and not trend_df.empty:
-        trend_fig = create_management_trend_chart(trend_df)
+        trend_fig = create_management_trend_chart(trend_df, theme_name=active_theme_name)
         st.plotly_chart(
             trend_fig, width="stretch", key="mgmt_trend"
         )

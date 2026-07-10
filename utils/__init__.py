@@ -84,3 +84,13 @@ from .alerts import (
     AlertConfig,
     Alert,
 )
+
+from .theme import (
+    get_theme,
+    apply_chart_theme,
+    get_available_themes,
+    get_custom_css,
+    RISK_LEVEL_COLOURS,
+    ESCALATION_COLOURS,
+    SCORE_BAND_COLOURS,
+)
