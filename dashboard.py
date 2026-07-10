@@ -50,12 +50,18 @@ from utils import (
     create_escalation_bar_chart,
     create_overdue_timeline,
     create_management_trend_chart,
+    create_score_distribution_chart,
+    create_score_waterfall_chart,
     # PDF
     generate_pdf,
     generate_enhanced_pdf,
     set_version,
     # Email
     OutlookDispatcher,
+    # Risk Scoring
+    calculate_risk_scores,
+    get_top_risks,
+    get_score_distribution,
 )
 
 
@@ -254,6 +260,65 @@ with right:
 st.subheader("Risk Heat Map")
 heatmap = create_heatmap(filtered_risk_df)
 st.plotly_chart(heatmap, width="stretch", key="heatmap")
+
+
+# ==========================================================
+# RISK SCORING ENGINE
+# ==========================================================
+
+st.subheader("🎯 Risk Scoring Engine")
+
+st.markdown("""
+Quantitative risk scoring using a weighted formula:
+**Score = (Likelihood × Impact) × Overdue Modifier × Control Modifier**
+
+Overdue risks are penalised up to 2× their base score. Implemented
+controls reduce the score by 50%.
+""")
+
+# Apply scoring
+scored_df = calculate_risk_scores(filtered_risk_df)
+
+# Score KPIs
+score_dist = get_score_distribution(scored_df)
+sc1, sc2, sc3, sc4 = st.columns(4)
+sc1.metric("🟣 Critical", score_dist["Critical"])
+sc2.metric("🔴 High", score_dist["High"])
+sc3.metric("🟡 Medium", score_dist["Medium"])
+sc4.metric("🟢 Low", score_dist["Low"])
+
+# Top 5 Risks
+st.markdown("#### Top 5 Risks by Residual Score")
+top_risks = get_top_risks(scored_df, n=5)
+st.dataframe(
+    top_risks,
+    width="stretch",
+    column_config={
+        "Residual_Risk_Score": st.column_config.NumberColumn(
+            "Risk Score", format="%.1f"
+        ),
+        "Base_Score": st.column_config.NumberColumn(
+            "Base (L×I)", format="%.0f"
+        ),
+        "Overdue_Modifier": st.column_config.NumberColumn(
+            "Overdue ×", format="%.2f"
+        ),
+        "Control_Modifier": st.column_config.NumberColumn(
+            "Control ×", format="%.2f"
+        ),
+    }
+)
+
+# Score Charts
+score_left, score_right = st.columns(2)
+
+with score_left:
+    score_dist_chart = create_score_distribution_chart(scored_df)
+    st.plotly_chart(score_dist_chart, width="stretch", key="score_dist")
+
+with score_right:
+    score_top_chart = create_score_waterfall_chart(top_risks)
+    st.plotly_chart(score_top_chart, width="stretch", key="score_top")
 
 
 # ==========================================================

@@ -18,6 +18,7 @@ Functions:
     create_management_trend_chart: Trend with target overlay.
 """
 
+import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
@@ -274,6 +275,93 @@ def create_management_trend_chart(trend_df, target=80):
         yaxis_title="Score (%)",
         xaxis_title="Month",
         yaxis_range=[0, 100]
+    )
+
+    return fig
+
+
+
+# ==========================================================
+# RISK SCORING CHARTS
+# ==========================================================
+
+SCORE_BAND_COLOURS = {
+    "Critical": "#6f42c1",
+    "High": "#dc3545",
+    "Medium": "#ffc107",
+    "Low": "#198754",
+}
+
+
+def create_score_distribution_chart(scored_df):
+    """
+    Create a bar chart of risk score band distribution.
+
+    Colour-coded by severity: Critical=purple, High=red,
+    Medium=amber, Low=green.
+
+    Args:
+        scored_df: DataFrame with 'Score_Band' column.
+
+    Returns:
+        plotly.graph_objects.Figure: Bar chart figure.
+    """
+
+    score_counts = (
+        scored_df["Score_Band"]
+        .value_counts()
+        .reset_index()
+    )
+    score_counts.columns = ["Score Band", "Count"]
+
+    # Enforce display order
+    band_order = ["Critical", "High", "Medium", "Low"]
+    score_counts["Score Band"] = pd.Categorical(
+        score_counts["Score Band"],
+        categories=band_order,
+        ordered=True
+    )
+    score_counts = score_counts.sort_values("Score Band")
+
+    return px.bar(
+        score_counts,
+        x="Score Band",
+        y="Count",
+        color="Score Band",
+        color_discrete_map=SCORE_BAND_COLOURS,
+        title="Risk Score Distribution"
+    )
+
+
+def create_score_waterfall_chart(top_risks_df):
+    """
+    Create a horizontal bar chart of top risks by score.
+
+    Useful for executive reporting to show the most critical
+    risks requiring attention.
+
+    Args:
+        top_risks_df: DataFrame with Risk_ID and
+            Residual_Risk_Score columns.
+
+    Returns:
+        plotly.graph_objects.Figure: Horizontal bar chart.
+    """
+
+    fig = px.bar(
+        top_risks_df,
+        x="Residual_Risk_Score",
+        y="Risk_ID",
+        color="Score_Band",
+        orientation="h",
+        hover_data=["Risk_Name", "Risk_Owner"],
+        color_discrete_map=SCORE_BAND_COLOURS,
+        title="Top Risks by Residual Score"
+    )
+
+    fig.update_layout(
+        yaxis_title="Risk ID",
+        xaxis_title="Residual Risk Score"
     )
 
     return fig

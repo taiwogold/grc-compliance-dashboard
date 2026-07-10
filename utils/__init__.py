@@ -36,6 +36,8 @@ from .charts import (
     create_escalation_bar_chart,
     create_overdue_timeline,
     create_management_trend_chart,
+    create_score_distribution_chart,
+    create_score_waterfall_chart,
 )
 
 from .pdf_generator import (
@@ -45,3 +47,10 @@ from .pdf_generator import (
 )
 
 from .email_dispatcher import OutlookDispatcher
+
+from .risk_scoring import (
+    calculate_risk_scores,
+    get_top_risks,
+    get_score_band,
+    get_score_distribution,
+)
