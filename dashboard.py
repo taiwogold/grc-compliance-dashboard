@@ -1,6 +1,6 @@
 """
 GRC Compliance Dashboard
-Version: 1.3.2
+Version: 2.0.1
 Author: Taiwo Durodola-Tunde
 """
 
@@ -9,6 +9,7 @@ from io import BytesIO
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
@@ -18,7 +19,7 @@ from reportlab.pdfgen import canvas
 # CONFIGURATION
 # ==========================================================
 
-APP_VERSION = "1.3.2"
+APP_VERSION = "2.0.1"
 
 st.set_page_config(
     page_title="GRC Compliance Dashboard",
@@ -98,6 +99,94 @@ def calculate_compliance_score(
         ) * 100,
         1
     )
+
+
+def calculate_escalation(risk_df):
+    """
+    Calculates overdue status and escalation levels for risks.
+
+    Escalation Levels:
+    - None: Not overdue (due date in the future or risk closed)
+    - Level 1: 1-14 days overdue (owner reminder)
+    - Level 2: 15-30 days overdue (manager escalation)
+    - Level 3: 31-60 days overdue (director escalation)
+    - Level 4: 60+ days overdue (executive escalation)
+    """
+
+    today = pd.Timestamp(
+        datetime.now().date()
+    )
+
+    df = risk_df.copy()
+
+    # Parse Due_Date column
+    if "Due_Date" in df.columns:
+        df["Due_Date"] = pd.to_datetime(
+            df["Due_Date"],
+            errors="coerce"
+        )
+    else:
+        df["Due_Date"] = pd.NaT
+
+    # Calculate days overdue (positive = overdue)
+    df["Days_Overdue"] = (
+        today - df["Due_Date"]
+    ).dt.days
+
+    # Only open risks can be overdue
+    df.loc[
+        df["Status"] == "Closed",
+        "Days_Overdue"
+    ] = 0
+
+    # Determine escalation level
+    conditions = [
+        (df["Status"] == "Closed") | (df["Days_Overdue"] <= 0),
+        (df["Days_Overdue"] >= 1) & (df["Days_Overdue"] <= 14),
+        (df["Days_Overdue"] >= 15) & (df["Days_Overdue"] <= 30),
+        (df["Days_Overdue"] >= 31) & (df["Days_Overdue"] <= 60),
+        (df["Days_Overdue"] > 60),
+    ]
+
+    choices = [
+        "None",
+        "Level 1 - Owner Reminder",
+        "Level 2 - Manager Escalation",
+        "Level 3 - Director Escalation",
+        "Level 4 - Executive Escalation",
+    ]
+
+    df["Escalation_Level"] = pd.Series(
+        pd.Categorical(
+            pd.array(
+                [
+                    choices[i]
+                    for i in range(len(choices))
+                    for _ in range(len(df))
+                ][:len(df)],
+                dtype="object"
+            )
+        )
+    )
+
+    # Apply conditions using numpy select
+    import numpy as np
+    df["Escalation_Level"] = np.select(
+        conditions,
+        choices,
+        default="None"
+    )
+
+    # Is Overdue flag
+    df["Is_Overdue"] = (
+        (df["Days_Overdue"] > 0) &
+        (df["Status"] == "Open")
+    )
+
+    # Days remaining (negative means overdue)
+    df["Days_Remaining"] = -df["Days_Overdue"]
+
+    return df
 
 
 def generate_pdf(
@@ -590,6 +679,250 @@ st.dataframe(
 
 
 # ==========================================================
+# ESCALATION TRACKING & OVERDUE RISK DASHBOARD
+# ==========================================================
+
+st.subheader(
+    "⚠️ Overdue Risk Escalation Dashboard"
+)
+
+# Apply escalation logic
+escalated_df = calculate_escalation(
+    filtered_risk_df
+)
+
+overdue_df = escalated_df[
+    escalated_df["Is_Overdue"] == True
+].sort_values(
+    "Days_Overdue",
+    ascending=False
+)
+
+# Overdue KPIs
+esc_c1, esc_c2, esc_c3, esc_c4 = st.columns(4)
+
+total_overdue = len(overdue_df)
+
+level_counts = (
+    overdue_df["Escalation_Level"]
+    .value_counts()
+)
+
+esc_c1.metric(
+    "🔴 Total Overdue",
+    total_overdue
+)
+
+esc_c2.metric(
+    "⚡ Level 3+",
+    level_counts.get(
+        "Level 3 - Director Escalation", 0
+    ) + level_counts.get(
+        "Level 4 - Executive Escalation", 0
+    )
+)
+
+esc_c3.metric(
+    "📅 Most Overdue (Days)",
+    int(overdue_df["Days_Overdue"].max())
+    if not overdue_df.empty else 0
+)
+
+esc_c4.metric(
+    "📊 Escalation Rate",
+    f"{round(total_overdue / len(escalated_df) * 100, 1)}%"
+    if len(escalated_df) > 0 else "0%"
+)
+
+# Overdue Risks Table with colour coding
+if not overdue_df.empty:
+
+    st.markdown("#### Overdue Risks by Escalation Level")
+
+    display_cols = [
+        "Risk_ID",
+        "Risk_Name",
+        "Risk_Level",
+        "Risk_Owner",
+        "Due_Date",
+        "Days_Overdue",
+        "Escalation_Level",
+        "Control_Status"
+    ]
+
+    available_cols = [
+        col for col in display_cols
+        if col in overdue_df.columns
+    ]
+
+    overdue_display = overdue_df[
+        available_cols
+    ].copy()
+
+    # Format Due_Date for display
+    if "Due_Date" in overdue_display.columns:
+        overdue_display["Due_Date"] = (
+            overdue_display["Due_Date"]
+            .dt.strftime("%Y-%m-%d")
+        )
+
+    st.dataframe(
+        overdue_display,
+        use_container_width=True,
+        column_config={
+            "Days_Overdue": st.column_config.NumberColumn(
+                "Days Overdue",
+                help="Number of days past the due date"
+            ),
+            "Escalation_Level": st.column_config.TextColumn(
+                "Escalation Level",
+                help="Current escalation tier"
+            ),
+        }
+    )
+
+    # Escalation Level Distribution Chart
+    esc_left, esc_right = st.columns(2)
+
+    with esc_left:
+
+        st.markdown("#### Escalation Level Distribution")
+
+        esc_counts = (
+            overdue_df["Escalation_Level"]
+            .value_counts()
+            .reset_index()
+        )
+        esc_counts.columns = [
+            "Escalation Level",
+            "Count"
+        ]
+
+        esc_chart = px.bar(
+            esc_counts,
+            x="Escalation Level",
+            y="Count",
+            color="Escalation Level",
+            color_discrete_map={
+                "Level 1 - Owner Reminder": "#ffc107",
+                "Level 2 - Manager Escalation": "#fd7e14",
+                "Level 3 - Director Escalation": "#dc3545",
+                "Level 4 - Executive Escalation": "#6f42c1",
+            }
+        )
+
+        st.plotly_chart(
+            esc_chart,
+            use_container_width=True,
+            key="escalation_distribution"
+        )
+
+    with esc_right:
+
+        st.markdown("#### Overdue Risks by Owner")
+
+        owner_overdue = (
+            overdue_df
+            .groupby("Risk_Owner")
+            .agg(
+                Overdue_Count=("Risk_ID", "count"),
+                Max_Days_Overdue=("Days_Overdue", "max"),
+                Highest_Escalation=(
+                    "Escalation_Level", "max"
+                )
+            )
+            .reset_index()
+            .sort_values(
+                "Max_Days_Overdue",
+                ascending=False
+            )
+        )
+
+        st.dataframe(
+            owner_overdue,
+            use_container_width=True
+        )
+
+    # Timeline visualisation
+    st.markdown("#### Overdue Risk Timeline")
+
+    timeline_df = overdue_df[
+        ["Risk_ID", "Risk_Name", "Due_Date", "Days_Overdue", "Risk_Owner"]
+    ].copy()
+
+    timeline_chart = px.bar(
+        timeline_df,
+        x="Days_Overdue",
+        y="Risk_ID",
+        color="Risk_Owner",
+        orientation="h",
+        hover_data=["Risk_Name", "Due_Date"],
+        title="Days Overdue by Risk"
+    )
+
+    timeline_chart.update_layout(
+        yaxis_title="Risk ID",
+        xaxis_title="Days Overdue"
+    )
+
+    st.plotly_chart(
+        timeline_chart,
+        use_container_width=True,
+        key="overdue_timeline"
+    )
+
+else:
+
+    st.success(
+        "✅ No overdue risks. All open risks are within their due dates."
+    )
+
+# Upcoming Due Dates (next 14 days)
+st.markdown("#### 📅 Risks Due Within 14 Days")
+
+upcoming_df = escalated_df[
+    (escalated_df["Days_Remaining"] >= 0) &
+    (escalated_df["Days_Remaining"] <= 14) &
+    (escalated_df["Status"] == "Open")
+].sort_values("Days_Remaining")
+
+if not upcoming_df.empty:
+
+    upcoming_display = upcoming_df[
+        [
+            "Risk_ID",
+            "Risk_Name",
+            "Risk_Level",
+            "Risk_Owner",
+            "Due_Date",
+            "Days_Remaining"
+        ]
+    ].copy()
+
+    upcoming_display["Due_Date"] = (
+        upcoming_display["Due_Date"]
+        .dt.strftime("%Y-%m-%d")
+    )
+
+    st.dataframe(
+        upcoming_display,
+        use_container_width=True,
+        column_config={
+            "Days_Remaining": st.column_config.NumberColumn(
+                "Days Until Due",
+                help="Number of days until the due date"
+            )
+        }
+    )
+
+else:
+
+    st.info(
+        "No risks due within the next 14 days."
+    )
+
+
+# ==========================================================
 # RISK REGISTER
 # ==========================================================
 
@@ -698,10 +1031,19 @@ risk_lines = []
 
 for _, row in open_risks.iterrows():
 
+    due_info = ""
+    if "Due_Date" in row and pd.notna(row.get("Due_Date")):
+        due_date = pd.to_datetime(row["Due_Date"])
+        days_diff = (datetime.now() - due_date).days
+        if days_diff > 0:
+            due_info = f" [⚠️ OVERDUE by {days_diff} days]"
+        else:
+            due_info = f" [Due: {due_date.strftime('%Y-%m-%d')}]"
+
     risk_lines.append(
         f"- {row['Risk_ID']} : "
         f"{row['Risk_Name']} "
-        f"({row['Risk_Level']})"
+        f"({row['Risk_Level']}){due_info}"
     )
 
 risk_list = "\n".join(
