@@ -65,3 +65,15 @@ from .database import (
     has_snapshot_today,
     get_snapshot_count,
 )
+
+from .audit_trail import (
+    init_audit_table,
+    log_action,
+    get_audit_trail,
+    get_audit_summary,
+    get_recent_actions,
+    get_audit_count,
+    export_audit_trail,
+    get_today_actions,
+    VALID_ACTIONS,
+)

@@ -74,6 +74,15 @@ from utils import (
     get_risk_history,
     get_latest_delta,
     get_snapshot_count,
+    # Audit Trail
+    init_audit_table,
+    log_action,
+    get_audit_trail,
+    get_audit_summary,
+    get_recent_actions,
+    get_audit_count,
+    export_audit_trail,
+    get_today_actions,
 )
 
 
@@ -81,7 +90,7 @@ from utils import (
 # CONFIGURATION
 # ==========================================================
 
-APP_VERSION = "2.2.0-alpha.2"
+APP_VERSION = "2.2.0-alpha.3"
 
 # Set version in PDF module
 set_version(APP_VERSION)
@@ -128,6 +137,11 @@ uploaded_file = st.sidebar.file_uploader(
 
 if uploaded_file:
     risk_df = pd.read_csv(uploaded_file)
+    log_action(
+        action_type="data_upload",
+        description=f"Risk register uploaded: {uploaded_file.name}",
+        metadata=f"rows={len(risk_df)}"
+    )
 
 if st.sidebar.button("🔄 Refresh Dashboard"):
     st.cache_data.clear()
@@ -293,6 +307,16 @@ scored_df = calculate_risk_scores(filtered_risk_df)
 
 # --- Initialise database and capture daily snapshot ---
 init_database()
+init_audit_table()
+
+# Log dashboard load (once per session)
+if "audit_load_logged" not in st.session_state:
+    log_action(
+        action_type="dashboard_load",
+        description="Dashboard loaded and initialised"
+    )
+    st.session_state.audit_load_logged = True
+
 capture_snapshot(
     risk_df=filtered_risk_df,
     compliance_score=compliance_score,
@@ -900,6 +924,11 @@ with send_col2:
             )
             if result["success"]:
                 st.success(f"✅ {result['message']}")
+                log_action(
+                    action_type="email_sent",
+                    description=f"Reminder sent to {owner_email}",
+                    metadata=f"owner={selected_owner}"
+                )
             else:
                 st.error(f"❌ {result['message']}")
 
@@ -972,6 +1001,11 @@ if not overdue_df.empty:
                 failed = len(results) - sent
                 if sent > 0:
                     st.success(f"✅ {sent} reminder(s) sent successfully.")
+                    log_action(
+                        action_type="email_bulk_sent",
+                        description=f"Bulk reminders sent to {sent} owner(s)",
+                        metadata=f"sent={sent},failed={failed}"
+                    )
                 if failed > 0:
                     st.error(f"❌ {failed} email(s) failed to send.")
                 for r in results:
@@ -996,6 +1030,71 @@ if audit_entries:
     st.caption(f"Showing {len(audit_entries)} audit entries.")
 else:
     st.info("No email dispatch activity recorded yet.")
+
+
+# ==========================================================
+# AUDIT TRAIL
+# ==========================================================
+
+st.subheader("📋 Audit Trail")
+
+st.markdown("""
+All significant dashboard actions are recorded for governance
+evidence and compliance purposes. This provides a full history
+of who did what and when.
+""")
+
+# Audit KPIs
+audit_count = get_audit_count()
+audit_summary = get_audit_summary()
+today_actions = get_today_actions()
+
+aud_c1, aud_c2, aud_c3 = st.columns(3)
+aud_c1.metric("Total Actions Logged", audit_count)
+aud_c2.metric("Actions Today", len(today_actions))
+aud_c3.metric("Action Types", len(audit_summary))
+
+# Filter controls
+st.markdown("#### Action Log")
+
+audit_filter_col1, audit_filter_col2 = st.columns([1, 3])
+
+with audit_filter_col1:
+    filter_type = st.selectbox(
+        "Filter by Action",
+        options=["All"] + list(audit_summary.keys()),
+        key="audit_filter_type"
+    )
+
+# Retrieve filtered trail
+selected_type = None if filter_type == "All" else filter_type
+audit_df = get_audit_trail(action_type=selected_type, limit=50)
+
+if not audit_df.empty:
+    st.dataframe(
+        audit_df[
+            ["timestamp", "action_type", "description", "metadata"]
+        ],
+        width="stretch",
+        column_config={
+            "timestamp": "Time",
+            "action_type": "Action",
+            "description": "Description",
+            "metadata": "Details",
+        }
+    )
+    st.caption(f"Showing {len(audit_df)} most recent entries.")
+else:
+    st.info("No audit trail entries recorded yet.")
+
+# Export
+st.download_button(
+    "📥 Export Audit Trail (CSV)",
+    export_audit_trail(),
+    f"audit_trail_{datetime.now().strftime('%Y%m%d')}.csv",
+    "text/csv",
+    key="audit_export_btn"
+)
 
 
 # ==========================================================
