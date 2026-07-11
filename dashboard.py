@@ -90,8 +90,8 @@ show_logout_button()
 st.sidebar.divider()
 
 st.sidebar.header("🎨 Appearance")
-theme_choice = st.sidebar.toggle("Dark Mode", value=False, key="dark_mode_toggle")
-active_theme_name = "dark" if theme_choice else "light"
+dark_mode = st.sidebar.toggle("🌙 Dark Mode", value=False, key="dark_mode_toggle")
+active_theme_name = "dark" if dark_mode else "light"
 active_theme = get_theme(active_theme_name)
 st.markdown(get_custom_css(active_theme), unsafe_allow_html=True)
 

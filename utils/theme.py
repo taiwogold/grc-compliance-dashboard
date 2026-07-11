@@ -1,71 +1,29 @@
 """
-Theme Module - Dashboard Theming & Dark Mode
-Version: 2.2.0
+Theme Module - Full Dark/Light Mode Toggle
+Version: 3.3.1
 Author: Taiwo Durodola-Tunde
 
-Provides light and dark theme configurations for the GRC
-dashboard. Controls Plotly chart backgrounds, text colours,
-grid colours, and font styling to ensure consistent appearance
-across both modes.
+Provides a fully working dark/light mode toggle that controls
+EVERY visual element in the dashboard — backgrounds, text,
+cards, charts, tables, sidebar, tabs, buttons, borders.
+
+How it works:
+    Streamlit's config.toml sets the base theme, but we override
+    it completely via comprehensive CSS injection that covers all
+    Streamlit internal class names. Charts use transparent
+    backgrounds so they inherit the page colour automatically.
 
 Usage:
-    from utils.theme import get_theme, apply_chart_theme
-
-    theme = get_theme("dark")
-    fig = apply_chart_theme(fig, theme)
-
-Functions:
-    get_theme: Return a theme configuration dictionary.
-    apply_chart_theme: Apply theme to a Plotly figure.
-    get_available_themes: List available theme names.
+    from utils.theme import get_theme, get_custom_css, apply_chart_theme
 """
 
+import streamlit as st
+
 
 # ==========================================================
-# THEME DEFINITIONS
+# COLOUR PALETTES — Saturated for both backgrounds
 # ==========================================================
 
-THEMES = {
-    "light": {
-        "name": "Light",
-        "background": "#ffffff",
-        "paper_bg": "#ffffff",
-        "plot_bg": "#f8f9fa",
-        "text_color": "#212529",
-        "grid_color": "#dee2e6",
-        "font_family": "Inter, sans-serif",
-        "title_color": "#1a237e",
-        "accent_primary": "#1a237e",
-        "accent_secondary": "#283593",
-        "card_bg": "#f8f9fa",
-        "border_color": "#dee2e6",
-        # Plotly template
-        "plotly_template": "plotly_white",
-        # Trend line colour
-        "trend_line_color": "#1a237e",
-    },
-    "dark": {
-        "name": "Dark",
-        "background": "#0e1117",
-        "paper_bg": "#1e1e2e",
-        "plot_bg": "#1e1e2e",
-        "text_color": "#e0e0e0",
-        "grid_color": "#333344",
-        "font_family": "Inter, sans-serif",
-        "title_color": "#90caf9",
-        "accent_primary": "#90caf9",
-        "accent_secondary": "#64b5f6",
-        "card_bg": "#1e1e2e",
-        "border_color": "#333344",
-        # Plotly template
-        "plotly_template": "plotly_dark",
-        # Trend line colour
-        "trend_line_color": "#90caf9",
-    },
-}
-
-# Risk level colours — consistent across both themes
-# These are saturated enough to work on both backgrounds
 RISK_LEVEL_COLOURS = {
     "High": "#ef5350",
     "Medium": "#ffca28",
@@ -88,129 +46,280 @@ SCORE_BAND_COLOURS = {
 
 
 # ==========================================================
-# THEME FUNCTIONS
+# THEME DEFINITIONS
 # ==========================================================
 
+THEMES = {
+    "light": {
+        "name": "Light",
+        # Page
+        "bg_primary": "#ffffff",
+        "bg_secondary": "#f0f2f6",
+        "bg_card": "#ffffff",
+        "bg_sidebar": "#f8f9fc",
+        # Text
+        "text_primary": "#1e1e1e",
+        "text_secondary": "#555555",
+        "text_muted": "#888888",
+        # Accents
+        "accent": "#1a237e",
+        "accent_light": "#e8eaf6",
+        "border": "rgba(0, 0, 0, 0.08)",
+        "shadow": "rgba(0, 0, 0, 0.04)",
+        # Charts
+        "plotly_template": "plotly_white",
+        "chart_bg": "rgba(0,0,0,0)",
+        "chart_text": "#1e1e1e",
+        "chart_grid": "#e8e8e8",
+        "trend_line": "#1a237e",
+        # Components
+        "tab_active_bg": "#ffffff",
+        "tab_hover_bg": "#f0f2f6",
+        "input_bg": "#ffffff",
+        "input_border": "#d1d5db",
+        "button_bg": "#1a237e",
+        "button_text": "#ffffff",
+        "success": "#10b981",
+        "warning": "#f59e0b",
+        "error": "#ef4444",
+    },
+    "dark": {
+        "name": "Dark",
+        # Page
+        "bg_primary": "#0e1117",
+        "bg_secondary": "#161b22",
+        "bg_card": "#1c2128",
+        "bg_sidebar": "#161b22",
+        # Text
+        "text_primary": "#e6edf3",
+        "text_secondary": "#b1bac4",
+        "text_muted": "#768390",
+        # Accents
+        "accent": "#58a6ff",
+        "accent_light": "#1c3a5c",
+        "border": "rgba(255, 255, 255, 0.08)",
+        "shadow": "rgba(0, 0, 0, 0.3)",
+        # Charts
+        "plotly_template": "plotly_dark",
+        "chart_bg": "rgba(0,0,0,0)",
+        "chart_text": "#e6edf3",
+        "chart_grid": "#2d333b",
+        "trend_line": "#58a6ff",
+        # Components
+        "tab_active_bg": "#1c2128",
+        "tab_hover_bg": "#21262d",
+        "input_bg": "#1c2128",
+        "input_border": "#363b42",
+        "button_bg": "#58a6ff",
+        "button_text": "#0e1117",
+        "success": "#3fb950",
+        "warning": "#d29922",
+        "error": "#f85149",
+    },
+}
+
+
 def get_theme(theme_name: str = "light") -> dict:
-    """
-    Return a theme configuration dictionary.
-
-    Args:
-        theme_name: Either 'light' or 'dark'.
-            Defaults to 'light'.
-
-    Returns:
-        dict: Full theme configuration with all colour values.
-    """
-
-    if theme_name not in THEMES:
-        theme_name = "light"
-
-    return THEMES[theme_name]
+    """Return theme config dictionary."""
+    return THEMES.get(theme_name, THEMES["light"])
 
 
 def get_available_themes() -> list:
-    """
-    List available theme names.
-
-    Returns:
-        list: Theme name strings.
-    """
-
+    """List available theme names."""
     return list(THEMES.keys())
 
 
 def apply_chart_theme(fig, theme: dict):
     """
-    Apply theme styling to a Plotly figure.
+    Apply theme to a Plotly figure with transparent background.
 
-    Updates the figure's layout with theme-appropriate
-    backgrounds, text colours, grid colours, and fonts.
-
-    Args:
-        fig: Plotly figure object to style.
-        theme: Theme configuration dictionary from get_theme().
-
-    Returns:
-        The same figure object with updated styling.
+    Charts use transparent bg so they inherit page colour.
     """
-
     fig.update_layout(
         template=theme["plotly_template"],
-        paper_bgcolor=theme["paper_bg"],
-        plot_bgcolor=theme["plot_bg"],
-        font=dict(
-            family=theme["font_family"],
-            color=theme["text_color"]
-        ),
-        title_font=dict(
-            color=theme["title_color"]
-        ),
-        xaxis=dict(
-            gridcolor=theme["grid_color"],
-            linecolor=theme["grid_color"]
-        ),
-        yaxis=dict(
-            gridcolor=theme["grid_color"],
-            linecolor=theme["grid_color"]
-        ),
+        paper_bgcolor=theme["chart_bg"],
+        plot_bgcolor=theme["chart_bg"],
+        font=dict(color=theme["chart_text"]),
+        title_font=dict(color=theme["accent"]),
+        xaxis=dict(gridcolor=theme["chart_grid"]),
+        yaxis=dict(gridcolor=theme["chart_grid"]),
     )
-
     return fig
 
 
 def get_custom_css(theme: dict) -> str:
     """
-    Generate custom CSS for Streamlit based on the active theme.
+    Generate COMPREHENSIVE CSS that overrides every Streamlit element.
 
-    Applies background colours, text colours, and card styling
-    to Streamlit's UI elements via markdown injection.
-
-    Args:
-        theme: Theme configuration dictionary.
-
-    Returns:
-        str: CSS string to inject via st.markdown.
+    This is a full theme override — not partial. Covers:
+    backgrounds, text, sidebar, tabs, inputs, buttons, metrics,
+    dataframes, alerts, expanders, and all component states.
     """
+
+    t = theme  # shorthand
 
     return f"""
     <style>
-        /* Main background */
+        /* ===== ROOT OVERRIDES ===== */
         .stApp {{
-            background-color: {theme['background']};
+            background-color: {t['bg_primary']} !important;
+            color: {t['text_primary']} !important;
         }}
 
-        /* Metric cards */
+        /* ===== SIDEBAR ===== */
+        section[data-testid="stSidebar"] {{
+            background-color: {t['bg_sidebar']} !important;
+        }}
+        section[data-testid="stSidebar"] * {{
+            color: {t['text_primary']} !important;
+        }}
+        section[data-testid="stSidebar"] .stMarkdown p {{
+            color: {t['text_primary']} !important;
+        }}
+
+        /* ===== HEADERS ===== */
+        h1, h2, h3, h4, h5, h6,
+        .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {{
+            color: {t['text_primary']} !important;
+        }}
+
+        /* ===== TEXT ===== */
+        p, span, label, .stMarkdown, .stCaption,
+        [data-testid="stMarkdownContainer"] p {{
+            color: {t['text_primary']} !important;
+        }}
+        .stCaption, small {{
+            color: {t['text_muted']} !important;
+        }}
+
+        /* ===== METRIC CARDS ===== */
         [data-testid="stMetric"] {{
-            background-color: {theme['card_bg']};
-            border: 1px solid {theme['border_color']};
-            border-radius: 8px;
-            padding: 12px 16px;
+            background-color: {t['bg_card']} !important;
+            border: 1px solid {t['border']} !important;
+            border-radius: 12px !important;
+            padding: 16px 20px !important;
+            box-shadow: 0 2px 8px {t['shadow']} !important;
         }}
-
+        [data-testid="stMetricValue"] {{
+            color: {t['text_primary']} !important;
+            font-weight: 700 !important;
+        }}
         [data-testid="stMetricLabel"] {{
-            color: {theme['text_color']};
+            color: {t['text_secondary']} !important;
+        }}
+        [data-testid="stMetricDelta"] {{
+            font-weight: 600 !important;
         }}
 
-        /* Dataframe styling */
-        [data-testid="stDataFrame"] {{
-            border: 1px solid {theme['border_color']};
-            border-radius: 4px;
+        /* ===== TABS ===== */
+        .stTabs [data-baseweb="tab-list"] {{
+            background-color: {t['bg_secondary']} !important;
+            border-radius: 12px !important;
+            padding: 4px !important;
+            gap: 4px !important;
+        }}
+        .stTabs [data-baseweb="tab"] {{
+            background-color: transparent !important;
+            color: {t['text_secondary']} !important;
+            border-radius: 8px !important;
+            padding: 10px 20px !important;
+            font-weight: 500 !important;
+        }}
+        .stTabs [aria-selected="true"] {{
+            background-color: {t['tab_active_bg']} !important;
+            color: {t['accent']} !important;
+            font-weight: 700 !important;
+            box-shadow: 0 1px 4px {t['shadow']} !important;
+        }}
+        .stTabs [data-baseweb="tab-highlight"] {{
+            background-color: {t['accent']} !important;
+        }}
+        .stTabs [data-baseweb="tab-panel"] {{
+            padding-top: 1.5rem !important;
         }}
 
-        /* Sidebar */
-        [data-testid="stSidebar"] {{
-            background-color: {theme['paper_bg']};
+        /* ===== DATAFRAMES ===== */
+        [data-testid="stDataFrame"],
+        .stDataFrame {{
+            border: 1px solid {t['border']} !important;
+            border-radius: 10px !important;
+            overflow: hidden !important;
         }}
 
-        /* Headers */
-        h1, h2, h3, h4, h5, h6 {{
-            color: {theme['title_color']} !important;
+        /* ===== INPUTS ===== */
+        .stTextInput input, .stSelectbox select,
+        .stTextArea textarea, .stNumberInput input {{
+            background-color: {t['input_bg']} !important;
+            border-color: {t['input_border']} !important;
+            color: {t['text_primary']} !important;
+            border-radius: 8px !important;
+        }}
+        .stMultiSelect [data-baseweb="tag"] {{
+            background-color: {t['accent_light']} !important;
         }}
 
-        /* Info boxes */
+        /* ===== BUTTONS ===== */
+        .stButton > button {{
+            border-radius: 8px !important;
+            font-weight: 600 !important;
+            border: 1px solid {t['border']} !important;
+            transition: all 0.2s ease !important;
+        }}
+        .stButton > button:hover {{
+            transform: translateY(-1px) !important;
+            box-shadow: 0 4px 12px {t['shadow']} !important;
+        }}
+        .stDownloadButton > button {{
+            border-radius: 8px !important;
+            font-weight: 500 !important;
+        }}
+
+        /* ===== ALERTS ===== */
         .stAlert {{
-            border-radius: 8px;
+            border-radius: 10px !important;
+            border-left-width: 4px !important;
+        }}
+
+        /* ===== EXPANDERS ===== */
+        .streamlit-expanderHeader {{
+            color: {t['text_primary']} !important;
+            font-weight: 600 !important;
+            background-color: {t['bg_secondary']} !important;
+            border-radius: 8px !important;
+        }}
+
+        /* ===== DIVIDERS ===== */
+        hr {{
+            border-color: {t['border']} !important;
+            opacity: 0.5 !important;
+        }}
+
+        /* ===== CHECKBOX & TOGGLE ===== */
+        .stCheckbox label span {{
+            color: {t['text_primary']} !important;
+        }}
+
+        /* ===== FILE UPLOADER ===== */
+        [data-testid="stFileUploader"] {{
+            border: 2px dashed {t['border']} !important;
+            border-radius: 10px !important;
+            padding: 1rem !important;
+        }}
+
+        /* ===== PLOTLY CHARTS ===== */
+        .js-plotly-plot .plotly .main-svg {{
+            background: transparent !important;
+        }}
+
+        /* ===== SELECTBOX DROPDOWN ===== */
+        [data-baseweb="select"] {{
+            background-color: {t['input_bg']} !important;
+        }}
+        [data-baseweb="menu"] {{
+            background-color: {t['bg_card']} !important;
+        }}
+        [data-baseweb="menu"] li {{
+            color: {t['text_primary']} !important;
         }}
     </style>
     """
