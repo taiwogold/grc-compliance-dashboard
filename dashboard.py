@@ -1,1592 +1,719 @@
 """
 GRC Compliance Dashboard
-Version: 2.5.0
+Version: 3.3.0
 Author: Taiwo Durodola-Tunde
 
-Main application file — handles layout, UI components, and
-orchestration. All business logic lives in the utils/ package.
+Multi-tab enterprise GRC dashboard with professional UI.
+All business logic lives in the utils/ package.
 
 Release Notes:
+    v3.3.0 - Multi-tab interface, UX overhaul
     v3.2.0 - FastAPI REST API endpoints
     v3.0.0 - PostgreSQL backend, persistent cloud storage
-    v2.5.0 - Streamlit Cloud deployment, password gate, cloud-ready config
-    v2.4.0 - Config management, multi-org DB, email providers, auth, error handling
-    v2.3.0 - Jira integration, init_database ordering fix
+    v2.5.0 - Streamlit Cloud deployment, password gate
+    v2.4.0 - Config management, multi-org DB, email providers, auth
+    v2.3.0 - Jira integration
     v2.2.0 - Audit, History & Intelligence
-    v2.1.1 - Modular refactor (no feature changes)
     v2.1.0 - Outlook Integration & Automated Reminder Dispatch
-    v2.0.2 - Monthly Management Reports & Enhanced PDF Exports
-    v2.0.1 - Overdue Risk Escalation Tracking
     v2.0.0 - Initial release with KPI dashboard
 
 Architecture:
-    dashboard.py          - UI layout and orchestration (this file)
-    utils/data_loader.py  - CSV loading, validation, caching
-    utils/metrics.py      - Compliance scoring, escalation, summaries
-    utils/charts.py       - Plotly chart generation
-    utils/pdf_generator.py - PDF report generation
-    utils/email_dispatcher.py - Secure Outlook email dispatch
+    dashboard.py           - UI orchestration with tabbed layout
+    utils/                 - All business logic modules
+    api/                   - REST API endpoints
 """
 
 import sys
 sys.dont_write_bytecode = True
 
 from datetime import datetime
+import logging
 
 import pandas as pd
+import plotly.express as px
 import streamlit as st
 
 from utils.auth import require_auth, get_current_user, show_logout_button
 from utils.cloud_auth import check_password
 
-# Import all utilities from the modular package
 from utils import (
-    # Data loading
-    load_risk_register,
-    load_controls,
-    load_compliance_history,
-    validate_dataframe,
-    RISK_REGISTER_REQUIRED_COLUMNS,
-    # Metrics & calculations
-    calculate_compliance_score,
-    calculate_risk_metrics,
-    calculate_escalation,
-    determine_health_rating,
+    load_risk_register, load_controls, load_compliance_history,
+    validate_dataframe, RISK_REGISTER_REQUIRED_COLUMNS,
+    calculate_compliance_score, calculate_risk_metrics,
+    calculate_escalation, determine_health_rating,
     generate_monthly_summary,
-    # Charts
-    create_compliance_trend_chart,
-    create_control_pie_chart,
-    create_risk_bar_chart,
-    create_risk_status_pie,
-    create_heatmap,
-    create_escalation_bar_chart,
-    create_overdue_timeline,
-    create_management_trend_chart,
-    create_score_distribution_chart,
-    create_score_waterfall_chart,
-    # PDF
-    generate_pdf,
-    generate_enhanced_pdf,
-    set_version,
-    # Email
+    create_compliance_trend_chart, create_control_pie_chart,
+    create_risk_bar_chart, create_risk_status_pie,
+    create_heatmap, create_escalation_bar_chart,
+    create_overdue_timeline, create_management_trend_chart,
+    create_score_distribution_chart, create_score_waterfall_chart,
+    generate_pdf, generate_enhanced_pdf, set_version,
     OutlookDispatcher,
-    # Risk Scoring
-    calculate_risk_scores,
-    get_top_risks,
-    get_score_distribution,
-    # Database / History
-    init_database,
-    capture_snapshot,
-    get_snapshots,
-    get_snapshot_detail,
-    get_risk_history,
-    get_latest_delta,
+    calculate_risk_scores, get_top_risks, get_score_distribution,
+    init_database, capture_snapshot, get_snapshots,
+    get_snapshot_detail, get_risk_history, get_latest_delta,
     get_snapshot_count,
-    # Audit Trail
-    init_audit_table,
-    log_action,
-    get_audit_trail,
-    get_audit_summary,
-    get_recent_actions,
-    get_audit_count,
-    export_audit_trail,
+    init_audit_table, log_action, get_audit_trail,
+    get_audit_summary, get_audit_count, export_audit_trail,
     get_today_actions,
-    # Alerts
     evaluate_alerts,
-    # Theme
-    get_theme,
-    apply_chart_theme,
-    get_available_themes,
-    get_custom_css,
-    # Jira Integration
-    build_jira_client_from_config,
-    summarise_push_results,
+    get_theme, apply_chart_theme, get_custom_css,
+    database_manager,
 )
 
+_logger = logging.getLogger(__name__)
+
 
 # ==========================================================
-# CONFIGURATION
+# PAGE CONFIG & AUTH
 # ==========================================================
 
-APP_VERSION = "3.2.0"
-
-# Set version in PDF module
+APP_VERSION = "3.3.0"
 set_version(APP_VERSION)
 
 st.set_page_config(
     page_title="GRC Compliance Dashboard",
-    layout="wide"
+    page_icon="🛡️",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# ==========================================================
-# AUTHENTICATION — must run before any content is rendered
-# ==========================================================
-
-# Cloud password gate (simple shared password)
+# --- Authentication ---
 if not check_password():
     st.stop()
-
-# Full RBAC auth (when GRC_AUTH_ENABLED=1)
 require_auth()
 
-# --- Sidebar: User info & logout ---
+# --- Sidebar: User & Theme ---
 current_user = get_current_user()
-st.sidebar.markdown(
-    f"👤 **{current_user['name']}** "
-    f"({current_user['role'].title()})"
-)
+st.sidebar.markdown(f"👤 **{current_user['name']}** ({current_user['role'].title()})")
 show_logout_button()
 st.sidebar.divider()
 
-# --- Theme Selection ---
-st.sidebar.header("🎨 Theme")
-theme_choice = st.sidebar.toggle(
-    "Dark Mode",
-    value=False,
-    key="dark_mode_toggle"
-)
+st.sidebar.header("🎨 Appearance")
+theme_choice = st.sidebar.toggle("Dark Mode", value=False, key="dark_mode_toggle")
 active_theme_name = "dark" if theme_choice else "light"
 active_theme = get_theme(active_theme_name)
-
-# Apply custom CSS for the selected theme
 st.markdown(get_custom_css(active_theme), unsafe_allow_html=True)
 
-# Optional Banner
-try:
-    st.image("assets/banner.png", width="stretch")
-except Exception:
-    pass
-
-st.title("🛡️ GRC Compliance Dashboard")
-st.caption(f"Version {APP_VERSION}")
-st.caption(
-    f"Last Refreshed: {datetime.now().strftime('%d %b %Y %H:%M')}"
-)
-
 
 # ==========================================================
-# LOAD DATA
+# DATA LOADING
 # ==========================================================
-
-import logging
-_logger = logging.getLogger(__name__)
 
 try:
     risk_df = load_risk_register()
-except FileNotFoundError:
-    st.error(
-        "Risk register file not found at `data/risk_register.csv`. "
-        "Please upload a file using the sidebar uploader below, "
-        "or ensure the data folder contains the required files."
-    )
-    st.info("👉 Use the **Data Upload** section in the sidebar to load a CSV.")
-    risk_df = None
-except pd.errors.EmptyDataError:
-    st.error(
-        "The risk register CSV is empty. "
-        "Please check the file and try again."
-    )
-    risk_df = None
-except pd.errors.ParserError as e:
-    st.error(
-        f"Could not parse risk register CSV — the file may be corrupted: {e}"
-    )
-    risk_df = None
 except Exception as e:
-    st.error(f"Unexpected error loading risk register: {e}")
-    _logger.exception("Failed to load risk register")
     risk_df = None
+    _logger.error(f"Risk register load failed: {e}")
 
 try:
     controls_df = load_controls()
-except FileNotFoundError:
-    st.warning(
-        "Controls file not found at `data/controls.csv`. "
-        "Compliance score and ISO coverage charts will be unavailable."
-    )
-    controls_df = None
-except pd.errors.EmptyDataError:
-    st.warning("Controls CSV is empty — compliance score will show 0%.")
-    controls_df = None
-except Exception as e:
-    st.warning(f"Could not load controls data: {e}")
-    _logger.exception("Failed to load controls")
+except Exception:
     controls_df = None
 
-# Stop if the core risk register failed and no upload is present
-if risk_df is None:
-    st.sidebar.header("Data Upload")
-    uploaded_file = st.sidebar.file_uploader(
-        "Upload Risk Register CSV", type=["csv"]
-    )
-    if uploaded_file:
-        try:
-            risk_df = pd.read_csv(uploaded_file)
-            st.success(f"Loaded {len(risk_df)} rows from uploaded file.")
-        except Exception as e:
-            st.error(f"Could not read uploaded file: {e}")
-            st.stop()
-    else:
-        st.stop()
-
-
-# ==========================================================
-# SIDEBAR: UPLOAD & ACTIONS
-# ==========================================================
-
-st.sidebar.header("Data Upload")
-
-uploaded_file = st.sidebar.file_uploader(
-    "Upload Risk Register CSV", type=["csv"]
-)
-
+# --- Sidebar: Upload & Filters ---
+st.sidebar.header("📂 Data")
+uploaded_file = st.sidebar.file_uploader("Upload Risk Register CSV", type=["csv"])
 if uploaded_file:
     if uploaded_file.size > 10 * 1024 * 1024:
-        st.sidebar.error("File too large — maximum size is 10MB.")
+        st.sidebar.error("File too large (max 10MB)")
     else:
         try:
             risk_df = pd.read_csv(uploaded_file)
-            if risk_df.empty:
-                st.sidebar.error("Uploaded file is empty.")
-            else:
-                st.sidebar.success(f"Loaded {len(risk_df)} rows.")
-                log_action(
-                    action_type="data_upload",
-                    description=f"Risk register uploaded: {uploaded_file.name}",
-                    metadata=f"rows={len(risk_df)}"
-                )
-        except pd.errors.ParserError:
-            st.sidebar.error("Could not parse CSV — check the file format.")
+            st.sidebar.success(f"✅ Loaded {len(risk_df)} rows")
         except Exception as e:
             st.sidebar.error(f"Upload failed: {e}")
 
-if st.sidebar.button("🔄 Refresh Dashboard"):
+if risk_df is None:
+    st.error("No risk data available. Upload a CSV in the sidebar.")
+    st.stop()
+
+if st.sidebar.button("🔄 Refresh"):
     st.cache_data.clear()
     st.rerun()
 
 
-# ==========================================================
-# DATA VALIDATION
-# ==========================================================
-
-missing_columns = validate_dataframe(
-    risk_df, RISK_REGISTER_REQUIRED_COLUMNS
-)
-
-if missing_columns:
-    st.error(
-        f"Missing required columns: {', '.join(missing_columns)}"
-    )
+# --- Validation ---
+missing = validate_dataframe(risk_df, RISK_REGISTER_REQUIRED_COLUMNS)
+if missing:
+    st.error(f"Missing columns: {', '.join(missing)}")
     st.stop()
 
-
-# ==========================================================
-# SIDEBAR: FILTERS
-# ==========================================================
-
-st.sidebar.header("Filters")
-
+# --- Filters ---
+st.sidebar.header("🔍 Filters")
 owners = sorted(risk_df["Risk_Owner"].dropna().unique())
+selected_owners = st.sidebar.multiselect("Risk Owner", options=owners, default=owners)
+filtered_df = risk_df[risk_df["Risk_Owner"].isin(selected_owners)]
 
-selected_owners = st.sidebar.multiselect(
-    "Risk Owner", options=owners, default=owners
-)
-
-filtered_risk_df = risk_df[
-    risk_df["Risk_Owner"].isin(selected_owners)
-]
-
-if filtered_risk_df.empty:
-    st.warning("No records found for the selected filters.")
+if filtered_df.empty:
+    st.warning("No records match the selected filters.")
     st.stop()
 
-
 # ==========================================================
-# DATABASE INITIALISATION
-# Must run before any database reads (alerts, delta, snapshots)
+# CALCULATIONS (shared across all tabs)
 # ==========================================================
 
-from utils import database_manager
 database_manager.init()
-
-# Log dashboard load (once per session)
 if "audit_load_logged" not in st.session_state:
-    database_manager.log_action(
-        action_type="dashboard_load",
-        description="Dashboard loaded and initialised"
-    )
+    database_manager.log_action("dashboard_load", "Dashboard session started")
     st.session_state.audit_load_logged = True
 
-
-# ==========================================================
-# KPI CALCULATIONS
-# ==========================================================
-
-compliance_score = calculate_compliance_score(controls_df)
-metrics = calculate_risk_metrics(filtered_risk_df)
+compliance_score = calculate_compliance_score(controls_df) if controls_df is not None else 0.0
+metrics = calculate_risk_metrics(filtered_df)
 rating = determine_health_rating(compliance_score)
+escalated_df = calculate_escalation(filtered_df)
+scored_df = calculate_risk_scores(filtered_df)
+
+# Capture daily snapshot
+database_manager.capture_snapshot(filtered_df, compliance_score, scored_df)
 
 
 # ==========================================================
-# KPI DASHBOARD
+# HEADER — Always visible above tabs
 # ==========================================================
 
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Compliance Score", f"{compliance_score}%")
-c2.metric("Open Risks", metrics["open_risks"])
-c3.metric("Closed Risks", metrics["closed_risks"])
-c4.metric("High Risks", metrics["high_risks"])
+# Title bar
+col_title, col_version = st.columns([4, 1])
+with col_title:
+    st.title("🛡️ GRC Compliance Dashboard")
+with col_version:
+    st.caption(f"v{APP_VERSION}")
+    st.caption(datetime.now().strftime("%d %b %Y %H:%M"))
 
+# Global KPI strip
+k1, k2, k3, k4, k5 = st.columns(5)
+k1.metric("Compliance", f"{compliance_score}%")
+k2.metric("Open Risks", metrics["open_risks"])
+k3.metric("Closed", metrics["closed_risks"])
+k4.metric("High Severity", metrics["high_risks"])
+k5.metric("Health", rating)
 
-# ==========================================================
-# TREND ALERTS & THRESHOLD NOTIFICATIONS
-# ==========================================================
-
-# Evaluate all alert conditions
+# Alert banner
 delta = get_latest_delta()
-triggered_alerts = evaluate_alerts(
+alerts = evaluate_alerts(
     compliance_score=compliance_score,
     metrics=metrics,
-    escalated_df=calculate_escalation(filtered_risk_df),
-    total_risks=len(filtered_risk_df),
+    escalated_df=escalated_df,
+    total_risks=len(filtered_df),
     delta=delta
 )
+if alerts:
+    with st.expander(f"🚨 {len(alerts)} Active Alert(s)", expanded=True):
+        for alert in alerts:
+            if alert.severity == "CRITICAL":
+                st.error(f"**{alert.title}** — {alert.message}")
+            elif alert.severity == "WARNING":
+                st.warning(f"**{alert.title}** — {alert.message}")
+            else:
+                st.info(f"**{alert.title}** — {alert.message}")
 
-# Display alert banner if any alerts are triggered
-if triggered_alerts:
-    st.subheader("🚨 Active Alerts")
-
-    for alert in triggered_alerts:
-        if alert.severity == "CRITICAL":
-            st.error(f"🔴 **{alert.title}** — {alert.message}")
-        elif alert.severity == "WARNING":
-            st.warning(f"🟠 **{alert.title}** — {alert.message}")
-        else:
-            st.info(f"🔵 **{alert.title}** — {alert.message}")
-
-    st.caption(
-        f"{len(triggered_alerts)} alert(s) active. "
-        f"Review and take action to resolve."
-    )
+st.divider()
 
 
 # ==========================================================
-# EXECUTIVE SUMMARY
+# TABBED INTERFACE
 # ==========================================================
 
-st.subheader("Executive Summary")
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    "📊 Executive",
+    "⚠️ Risks & Scoring",
+    "🔥 Escalations",
+    "📈 History & Trends",
+    "📧 Communications",
+    "📥 Reports & Exports"
+])
 
-summary_col1, summary_col2 = st.columns(2)
+# ==========================================================
+# TAB 1: EXECUTIVE DASHBOARD
+# ==========================================================
 
-with summary_col1:
-    st.info(f"""
+with tab1:
+    st.subheader("Executive Summary")
+
+    sum_left, sum_right = st.columns(2)
+    with sum_left:
+        st.info(f"""
 ### Compliance Position
-**Compliance Score:** {compliance_score}%
-
-**Current Status:** {rating}
+**Score:** {compliance_score}% | **Status:** {rating}
 """)
-
-with summary_col2:
-    st.info(f"""
+    with sum_right:
+        st.info(f"""
 ### Risk Overview
-**Open Risks:** {metrics['open_risks']}
-
-**Closed Risks:** {metrics['closed_risks']}
-
-**High Risks:** {metrics['high_risks']}
+**Open:** {metrics['open_risks']} | **Closed:** {metrics['closed_risks']} | **High:** {metrics['high_risks']}
 """)
 
+    # Compliance Trend + ISO Coverage
+    ch_left, ch_right = st.columns(2)
+    with ch_left:
+        st.markdown("#### Compliance Trend")
+        try:
+            trend_df = load_compliance_history()
+            fig = create_compliance_trend_chart(trend_df)
+            st.plotly_chart(fig, width="stretch", key="t1_trend")
+        except Exception:
+            st.info("Compliance history not available.")
+            trend_df = None
 
-# ==========================================================
-# COMPLIANCE TREND + ISO COVERAGE
-# ==========================================================
-
-chart_left, chart_right = st.columns(2)
-
-with chart_left:
-    st.subheader("Compliance Trend")
-    try:
-        trend_df = load_compliance_history()
-        trend_chart = create_compliance_trend_chart(trend_df)
-        st.plotly_chart(trend_chart, width="stretch", key="trend_chart")
-    except Exception:
-        trend_df = None
-        st.warning("compliance_history.csv not found")
-
-with chart_right:
-    st.subheader("ISO 27001 Control Coverage")
-    iso_chart = create_control_pie_chart(controls_df)
-    st.plotly_chart(iso_chart, width="stretch", key="iso_chart")
+    with ch_right:
+        st.markdown("#### ISO 27001 Control Coverage")
+        if controls_df is not None:
+            fig = create_control_pie_chart(controls_df)
+            st.plotly_chart(fig, width="stretch", key="t1_iso")
+        else:
+            st.info("Controls data not available.")
 
 
-# ==========================================================
-# CONTROL STATUS
-# ==========================================================
+    # Control Status
+    if controls_df is not None:
+        st.markdown("#### Control Implementation Status")
+        fig = create_control_pie_chart(controls_df, title="Control Status")
+        st.plotly_chart(fig, width="stretch", key="t1_ctrl")
 
-st.subheader("Control Status")
-control_chart = create_control_pie_chart(
-    controls_df, title="Control Implementation Status"
-)
-st.plotly_chart(control_chart, width="stretch", key="control_chart")
-
-
-# ==========================================================
-# RISK ANALYSIS
-# ==========================================================
-
-left, right = st.columns(2)
-
-with left:
-    risk_chart = create_risk_bar_chart(filtered_risk_df)
-    st.plotly_chart(risk_chart, width="stretch", key="risk_distribution")
-
-with right:
-    status_chart = create_risk_status_pie(filtered_risk_df)
-    st.plotly_chart(status_chart, width="stretch", key="risk_status")
-
-
-# ==========================================================
-# RISK HEAT MAP
-# ==========================================================
-
-st.subheader("Risk Heat Map")
-heatmap = create_heatmap(filtered_risk_df)
-st.plotly_chart(heatmap, width="stretch", key="heatmap")
-
-
-# ==========================================================
-# RISK SCORING ENGINE
-# ==========================================================
-
-st.subheader("🎯 Risk Scoring Engine")
-
-st.markdown("""
-Quantitative risk scoring using a weighted formula:
-**Score = (Likelihood × Impact) × Overdue Modifier × Control Modifier**
-
-Overdue risks are penalised up to 2× their base score. Implemented
-controls reduce the score by 50%.
-""")
-
-# Apply scoring
-scored_df = calculate_risk_scores(filtered_risk_df)
-
-# --- Capture daily snapshot ---
-database_manager.capture_snapshot(
-    risk_df=filtered_risk_df,
-    compliance_score=compliance_score,
-    scored_df=scored_df
-)
-
-# Score KPIs
-score_dist = get_score_distribution(scored_df)
-sc1, sc2, sc3, sc4 = st.columns(4)
-sc1.metric("🟣 Critical", score_dist["Critical"])
-sc2.metric("🔴 High", score_dist["High"])
-sc3.metric("🟡 Medium", score_dist["Medium"])
-sc4.metric("🟢 Low", score_dist["Low"])
-
-# Top 5 Risks
-st.markdown("#### Top 5 Risks by Residual Score")
-top_risks = get_top_risks(scored_df, n=5)
-st.dataframe(
-    top_risks,
-    width="stretch",
-    column_config={
-        "Residual_Risk_Score": st.column_config.NumberColumn(
-            "Risk Score", format="%.1f"
-        ),
-        "Base_Score": st.column_config.NumberColumn(
-            "Base (L×I)", format="%.0f"
-        ),
-        "Overdue_Modifier": st.column_config.NumberColumn(
-            "Overdue ×", format="%.2f"
-        ),
-        "Control_Modifier": st.column_config.NumberColumn(
-            "Control ×", format="%.2f"
-        ),
-    }
-)
-
-# Score Charts
-score_left, score_right = st.columns(2)
-
-with score_left:
-    score_dist_chart = create_score_distribution_chart(scored_df)
-    st.plotly_chart(score_dist_chart, width="stretch", key="score_dist")
-
-with score_right:
-    score_top_chart = create_score_waterfall_chart(top_risks)
-    st.plotly_chart(score_top_chart, width="stretch", key="score_top")
-
-
-# ==========================================================
-# RISK OWNER SUMMARY
-# ==========================================================
-
-st.subheader("Risk Owner Summary")
-
-owner_summary = (
-    filtered_risk_df
-    .groupby("Risk_Owner")
-    .agg(
-        Open_Risks=("Status", lambda x: (x == "Open").sum()),
-        High_Risks=("Risk_Level", lambda x: (x == "High").sum()),
-    )
-    .reset_index()
-)
-
-st.dataframe(owner_summary, width="stretch")
-
-
-# ==========================================================
-# ESCALATION TRACKING & OVERDUE RISK DASHBOARD
-# ==========================================================
-
-st.subheader("⚠️ Overdue Risk Escalation Dashboard")
-
-# Apply escalation logic
-escalated_df = calculate_escalation(filtered_risk_df)
-
-overdue_df = escalated_df[
-    escalated_df["Is_Overdue"] == True
-].sort_values("Days_Overdue", ascending=False)
-
-# Overdue KPIs
-esc_c1, esc_c2, esc_c3, esc_c4 = st.columns(4)
-total_overdue = len(overdue_df)
-level_counts = overdue_df["Escalation_Level"].value_counts()
-
-esc_c1.metric("🔴 Total Overdue", total_overdue)
-esc_c2.metric(
-    "⚡ Level 3+",
-    level_counts.get("Level 3 - Director Escalation", 0)
-    + level_counts.get("Level 4 - Executive Escalation", 0)
-)
-esc_c3.metric(
-    "📅 Most Overdue (Days)",
-    int(overdue_df["Days_Overdue"].max()) if not overdue_df.empty else 0
-)
-esc_c4.metric(
-    "📊 Escalation Rate",
-    f"{round(total_overdue / len(escalated_df) * 100, 1)}%"
-    if len(escalated_df) > 0 else "0%"
-)
-
-# Overdue Risks Table
-if not overdue_df.empty:
-    st.markdown("#### Overdue Risks by Escalation Level")
-
-    display_cols = [
-        "Risk_ID", "Risk_Name", "Risk_Level", "Risk_Owner",
-        "Due_Date", "Days_Overdue", "Escalation_Level", "Control_Status"
-    ]
-    available_cols = [c for c in display_cols if c in overdue_df.columns]
-    overdue_display = overdue_df[available_cols].copy()
-
-    if "Due_Date" in overdue_display.columns:
-        overdue_display["Due_Date"] = (
-            overdue_display["Due_Date"].dt.strftime("%Y-%m-%d")
+    # Owner Summary
+    st.markdown("#### Risk Owner Summary")
+    owner_summary = (
+        filtered_df.groupby("Risk_Owner")
+        .agg(
+            Open=("Status", lambda x: (x == "Open").sum()),
+            High=("Risk_Level", lambda x: (x == "High").sum()),
+            Total=("Risk_ID", "count"),
         )
-
-    st.dataframe(
-        overdue_display,
-        width="stretch",
-        column_config={
-            "Days_Overdue": st.column_config.NumberColumn(
-                "Days Overdue", help="Days past the due date"
-            ),
-            "Escalation_Level": st.column_config.TextColumn(
-                "Escalation Level", help="Current escalation tier"
-            ),
-        }
+        .reset_index()
+        .sort_values("Open", ascending=False)
     )
-
-    # Charts
-    esc_left, esc_right = st.columns(2)
-
-    with esc_left:
-        st.markdown("#### Escalation Level Distribution")
-        esc_chart = create_escalation_bar_chart(overdue_df)
-        st.plotly_chart(
-            esc_chart, width="stretch", key="escalation_distribution"
-        )
-
-    with esc_right:
-        st.markdown("#### Overdue Risks by Owner")
-        owner_overdue = (
-            overdue_df.groupby("Risk_Owner")
-            .agg(
-                Overdue_Count=("Risk_ID", "count"),
-                Max_Days_Overdue=("Days_Overdue", "max"),
-                Highest_Escalation=("Escalation_Level", "max"),
-            )
-            .reset_index()
-            .sort_values("Max_Days_Overdue", ascending=False)
-        )
-        st.dataframe(owner_overdue, width="stretch")
-
-    # Timeline
-    st.markdown("#### Overdue Risk Timeline")
-    timeline_chart = create_overdue_timeline(overdue_df)
-    st.plotly_chart(
-        timeline_chart, width="stretch", key="overdue_timeline"
-    )
-
-else:
-    st.success(
-        "✅ No overdue risks. All open risks are within their due dates."
-    )
-
-# Upcoming Due Dates
-st.markdown("#### 📅 Risks Due Within 14 Days")
-
-upcoming_df = escalated_df[
-    (escalated_df["Days_Remaining"] >= 0)
-    & (escalated_df["Days_Remaining"] <= 14)
-    & (escalated_df["Status"] == "Open")
-].sort_values("Days_Remaining")
-
-if not upcoming_df.empty:
-    upcoming_display = upcoming_df[
-        ["Risk_ID", "Risk_Name", "Risk_Level",
-         "Risk_Owner", "Due_Date", "Days_Remaining"]
-    ].copy()
-    upcoming_display["Due_Date"] = (
-        upcoming_display["Due_Date"].dt.strftime("%Y-%m-%d")
-    )
-    st.dataframe(
-        upcoming_display,
-        width="stretch",
-        column_config={
-            "Days_Remaining": st.column_config.NumberColumn(
-                "Days Until Due", help="Days until the due date"
-            )
-        }
-    )
-else:
-    st.info("No risks due within the next 14 days.")
+    st.dataframe(owner_summary, width="stretch")
 
 
 # ==========================================================
-# RISK REGISTER
+# TAB 2: RISKS & SCORING
 # ==========================================================
 
-st.subheader("Risk Register")
-st.dataframe(filtered_risk_df, width="stretch")
-st.caption(f"Displaying {len(filtered_risk_df)} risk records.")
+with tab2:
+    st.subheader("🎯 Risk Analysis & Scoring")
 
+    # Risk Level Distribution + Status
+    r_left, r_right = st.columns(2)
+    with r_left:
+        st.markdown("#### Risk Level Distribution")
+        fig = create_risk_bar_chart(filtered_df)
+        st.plotly_chart(fig, width="stretch", key="t2_levels")
+    with r_right:
+        st.markdown("#### Open vs Closed")
+        fig = create_risk_status_pie(filtered_df)
+        st.plotly_chart(fig, width="stretch", key="t2_status")
 
-# ==========================================================
-# RISK HISTORY & SNAPSHOTS
-# ==========================================================
+    # Heat Map
+    st.markdown("#### Risk Heat Map (Likelihood × Impact)")
+    fig = create_heatmap(filtered_df)
+    st.plotly_chart(fig, width="stretch", key="t2_heatmap")
 
-st.subheader("📸 Risk History & Snapshots")
+    st.divider()
 
-st.markdown("""
-The dashboard captures a daily snapshot of the risk register
-to enable historical comparison, trend analysis, and audit evidence.
-Snapshots are stored locally in `data/grc_history.db`.
-""")
-
-# Snapshot summary
-snapshot_count = get_snapshot_count()
-snapshots_df = get_snapshots()
-
-hist_c1, hist_c2, hist_c3 = st.columns(3)
-hist_c1.metric("Total Snapshots", snapshot_count)
-
-if not snapshots_df.empty:
-    hist_c2.metric("First Snapshot", snapshots_df["snapshot_date"].iloc[-1])
-    hist_c3.metric("Latest Snapshot", snapshots_df["snapshot_date"].iloc[0])
-
-# Delta since last snapshot
-delta = get_latest_delta()
-if delta:
-    st.markdown("#### Changes Since Last Snapshot")
-    d_c1, d_c2, d_c3, d_c4, d_c5 = st.columns(5)
-    d_c1.metric(
-        "Total Risks",
-        filtered_risk_df.shape[0],
-        delta=f"{delta['delta_total']:+d}" if delta["delta_total"] != 0 else None
-    )
-    d_c2.metric(
-        "Open Risks",
-        metrics["open_risks"],
-        delta=f"{delta['delta_open']:+d}" if delta["delta_open"] != 0 else None,
-        delta_color="inverse"
-    )
-    d_c3.metric(
-        "Closed Risks",
-        metrics["closed_risks"],
-        delta=f"{delta['delta_closed']:+d}" if delta["delta_closed"] != 0 else None
-    )
-    d_c4.metric(
-        "High Risks",
-        metrics["high_risks"],
-        delta=f"{delta['delta_high']:+d}" if delta["delta_high"] != 0 else None,
-        delta_color="inverse"
-    )
-    d_c5.metric(
-        "Compliance",
-        f"{compliance_score}%",
-        delta=f"{delta['delta_compliance']:+.1f}%" if delta["delta_compliance"] != 0 else None
-    )
+    # Risk Scoring Engine
+    st.markdown("#### 🎯 Quantitative Risk Scoring")
     st.caption(
-        f"Comparing {delta['date_current']} vs {delta['date_previous']}"
+        "Score = (Likelihood × Impact) × Overdue Modifier × Control Modifier"
     )
 
-# Snapshot history table
-if not snapshots_df.empty:
-    st.markdown("#### Snapshot History")
-    st.dataframe(
-        snapshots_df[
+    score_dist = get_score_distribution(scored_df)
+    s1, s2, s3, s4 = st.columns(4)
+    s1.metric("🟣 Critical", score_dist["Critical"])
+    s2.metric("🔴 High", score_dist["High"])
+    s3.metric("🟡 Medium", score_dist["Medium"])
+    s4.metric("🟢 Low", score_dist["Low"])
+
+    # Top risks table
+    st.markdown("#### Top 5 Risks by Score")
+    top_risks = get_top_risks(scored_df, n=5)
+    st.dataframe(top_risks, width="stretch", column_config={
+        "Residual_Risk_Score": st.column_config.NumberColumn("Score", format="%.1f"),
+        "Overdue_Modifier": st.column_config.NumberColumn("Overdue ×", format="%.2f"),
+        "Control_Modifier": st.column_config.NumberColumn("Control ×", format="%.2f"),
+    })
+
+
+    # Score charts
+    sc_left, sc_right = st.columns(2)
+    with sc_left:
+        fig = create_score_distribution_chart(scored_df)
+        st.plotly_chart(fig, width="stretch", key="t2_score_dist")
+    with sc_right:
+        fig = create_score_waterfall_chart(top_risks)
+        st.plotly_chart(fig, width="stretch", key="t2_score_top")
+
+    st.divider()
+
+    # Full Risk Register
+    st.markdown("#### Full Risk Register")
+    st.dataframe(filtered_df, width="stretch")
+    st.caption(f"Showing {len(filtered_df)} records")
+
+
+# ==========================================================
+# TAB 3: ESCALATIONS
+# ==========================================================
+
+with tab3:
+    st.subheader("⚠️ Overdue Risk Escalation Dashboard")
+
+    overdue_df = escalated_df[
+        escalated_df["Is_Overdue"] == True
+    ].sort_values("Days_Overdue", ascending=False)
+
+    total_overdue = len(overdue_df)
+    level_counts = overdue_df["Escalation_Level"].value_counts()
+
+    e1, e2, e3, e4 = st.columns(4)
+    e1.metric("🔴 Total Overdue", total_overdue)
+    e2.metric("⚡ Level 3+",
+        level_counts.get("Level 3 - Director Escalation", 0)
+        + level_counts.get("Level 4 - Executive Escalation", 0))
+    e3.metric("📅 Max Days Overdue",
+        int(overdue_df["Days_Overdue"].max()) if not overdue_df.empty else 0)
+    e4.metric("📊 Escalation Rate",
+        f"{round(total_overdue / len(escalated_df) * 100, 1)}%"
+        if len(escalated_df) > 0 else "0%")
+
+    if not overdue_df.empty:
+        st.markdown("#### Overdue Risks")
+        display_cols = ["Risk_ID", "Risk_Name", "Risk_Level", "Risk_Owner",
+                        "Due_Date", "Days_Overdue", "Escalation_Level"]
+        avail = [c for c in display_cols if c in overdue_df.columns]
+        disp = overdue_df[avail].copy()
+        if "Due_Date" in disp.columns:
+            disp["Due_Date"] = disp["Due_Date"].dt.strftime("%Y-%m-%d")
+        st.dataframe(disp, width="stretch")
+
+        # Charts
+        esc_l, esc_r = st.columns(2)
+        with esc_l:
+            st.markdown("#### By Escalation Level")
+            fig = create_escalation_bar_chart(overdue_df)
+            st.plotly_chart(fig, width="stretch", key="t3_esc_bar")
+        with esc_r:
+            st.markdown("#### Timeline")
+            fig = create_overdue_timeline(overdue_df)
+            st.plotly_chart(fig, width="stretch", key="t3_timeline")
+    else:
+        st.success("✅ No overdue risks — all within due dates.")
+
+
+    # Upcoming due dates
+    st.markdown("#### 📅 Due Within 14 Days")
+    upcoming = escalated_df[
+        (escalated_df["Days_Remaining"] >= 0)
+        & (escalated_df["Days_Remaining"] <= 14)
+        & (escalated_df["Status"] == "Open")
+    ].sort_values("Days_Remaining")
+
+    if not upcoming.empty:
+        up_disp = upcoming[["Risk_ID", "Risk_Name", "Risk_Level",
+                            "Risk_Owner", "Due_Date", "Days_Remaining"]].copy()
+        up_disp["Due_Date"] = up_disp["Due_Date"].dt.strftime("%Y-%m-%d")
+        st.dataframe(up_disp, width="stretch")
+    else:
+        st.info("No risks due within 14 days.")
+
+
+# ==========================================================
+# TAB 4: HISTORY & TRENDS
+# ==========================================================
+
+with tab4:
+    st.subheader("📸 Risk History & Snapshots")
+
+    snapshot_count = get_snapshot_count()
+    snapshots_df = get_snapshots()
+
+    h1, h2, h3 = st.columns(3)
+    h1.metric("Total Snapshots", snapshot_count)
+    if not snapshots_df.empty:
+        h2.metric("First", snapshots_df["snapshot_date"].iloc[-1])
+        h3.metric("Latest", snapshots_df["snapshot_date"].iloc[0])
+
+    # Delta
+    if delta:
+        st.markdown("#### Changes Since Last Snapshot")
+        d1, d2, d3, d4, d5 = st.columns(5)
+        d1.metric("Total", len(filtered_df),
+            delta=f"{delta['delta_total']:+d}" if delta["delta_total"] != 0 else None)
+        d2.metric("Open", metrics["open_risks"],
+            delta=f"{delta['delta_open']:+d}" if delta["delta_open"] != 0 else None,
+            delta_color="inverse")
+        d3.metric("Closed", metrics["closed_risks"],
+            delta=f"{delta['delta_closed']:+d}" if delta["delta_closed"] != 0 else None)
+        d4.metric("High", metrics["high_risks"],
+            delta=f"{delta['delta_high']:+d}" if delta["delta_high"] != 0 else None,
+            delta_color="inverse")
+        d5.metric("Compliance", f"{compliance_score}%",
+            delta=f"{delta['delta_compliance']:+.1f}%" if delta["delta_compliance"] != 0 else None)
+        st.caption(f"Comparing {delta['date_current']} vs {delta['date_previous']}")
+
+    # Snapshot history
+    if not snapshots_df.empty:
+        st.markdown("#### Snapshot History")
+        st.dataframe(snapshots_df[
             ["snapshot_date", "total_risks", "open_risks",
              "closed_risks", "high_risks", "compliance_score"]
-        ],
-        width="stretch",
-        column_config={
-            "snapshot_date": "Date",
-            "total_risks": "Total",
-            "open_risks": "Open",
-            "closed_risks": "Closed",
-            "high_risks": "High",
-            "compliance_score": st.column_config.NumberColumn(
-                "Compliance %", format="%.1f"
-            ),
-        }
-    )
-
-# Individual risk tracking
-st.markdown("#### 🔍 Track Individual Risk")
-
-all_risk_ids = sorted(filtered_risk_df["Risk_ID"].unique())
-selected_risk_id = st.selectbox(
-    "Select Risk ID to view history",
-    all_risk_ids,
-    key="risk_history_select"
-)
-
-if selected_risk_id:
-    risk_hist_df = get_risk_history(selected_risk_id)
-
-    if not risk_hist_df.empty:
-        st.dataframe(
-            risk_hist_df,
-            width="stretch",
-            column_config={
-                "snapshot_date": "Date",
-                "risk_level": "Level",
-                "status": "Status",
-                "risk_owner": "Owner",
-                "residual_score": st.column_config.NumberColumn(
-                    "Risk Score", format="%.1f"
-                ),
-            }
-        )
-
-        # Score trend for this risk
-        if "residual_score" in risk_hist_df.columns and risk_hist_df["residual_score"].notna().any():
-            import plotly.express as px
-            score_trend = px.line(
-                risk_hist_df,
-                x="snapshot_date",
-                y="residual_score",
-                markers=True,
-                title=f"Risk Score Trend: {selected_risk_id}"
-            )
-            st.plotly_chart(score_trend, width="stretch", key="risk_score_trend")
-    else:
-        st.info(
-            f"No history available for {selected_risk_id}. "
-            f"History builds over time as daily snapshots are captured."
-        )
+        ], width="stretch")
 
 
-# ==========================================================
-# MONTHLY MANAGEMENT REPORT
-# ==========================================================
-
-st.subheader("📊 Monthly Management Report")
-
-st.markdown("""
-This section provides a comprehensive monthly overview for senior
-management and governance committees. Use the enhanced PDF export
-below to generate the full report.
-""")
-
-# Load trend data
-try:
-    trend_df = load_compliance_history()
-except Exception:
-    trend_df = None
-
-# Generate monthly summary
-monthly_summary = generate_monthly_summary(
-    compliance_score, metrics, rating,
-    filtered_risk_df, escalated_df, trend_df
-)
-
-# Monthly KPIs
-mgmt_c1, mgmt_c2, mgmt_c3, mgmt_c4 = st.columns(4)
-mgmt_c1.metric(
-    "Compliance Score",
-    f"{monthly_summary['compliance']['score']}%",
-    delta=f"{monthly_summary['compliance']['month_over_month_change']:+.0f}% MoM"
-)
-mgmt_c2.metric(
-    "Risk Closure Rate",
-    f"{monthly_summary['risks']['closure_rate']}%"
-)
-mgmt_c3.metric(
-    "Escalation Rate",
-    f"{monthly_summary['escalation']['escalation_rate']}%"
-)
-mgmt_c4.metric(
-    "Gap to Target (80%)",
-    f"{monthly_summary['compliance']['gap_to_target']}%"
-)
-
-# Month-over-Month Analysis
-st.markdown("#### Month-over-Month Analysis")
-mgmt_left, mgmt_right = st.columns(2)
-
-with mgmt_left:
-    if trend_df is not None and not trend_df.empty:
-        trend_fig = create_management_trend_chart(trend_df, theme_name=active_theme_name)
-        st.plotly_chart(
-            trend_fig, width="stretch", key="mgmt_trend"
-        )
-    else:
-        st.info("Compliance trend data not available.")
-
-with mgmt_right:
-    st.markdown(f"""
-**Report Period:** {monthly_summary['report_period']}
-
-**Overall Position:** {monthly_summary['compliance']['rating']}
-
----
-
-| Metric | Value |
-|--------|-------|
-| Total Risks | {monthly_summary['risks']['total']} |
-| Open Risks | {monthly_summary['risks']['open']} |
-| High Risks | {monthly_summary['risks']['high']} |
-| Overdue Risks | {monthly_summary['escalation']['total_overdue']} |
-| Avg Days Overdue | {monthly_summary['escalation']['avg_days_overdue']} |
-| Max Days Overdue | {monthly_summary['escalation']['max_days_overdue']} |
-
----
-
-**Key Actions Required:**
-""")
-
-    if monthly_summary["escalation"]["total_overdue"] > 0:
-        st.warning(
-            f"⚠️ {monthly_summary['escalation']['total_overdue']} "
-            f"risk(s) require escalation action."
-        )
-    if monthly_summary["compliance"]["gap_to_target"] > 0:
-        st.warning(
-            f"📈 {monthly_summary['compliance']['gap_to_target']}% "
-            f"improvement needed to reach 80% target."
-        )
-    if monthly_summary["risks"]["high"] > 3:
-        st.error(
-            f"🔴 {monthly_summary['risks']['high']} high-severity "
-            f"risks exceed acceptable threshold."
-        )
-    if (
-        monthly_summary["escalation"]["total_overdue"] == 0
-        and monthly_summary["compliance"]["gap_to_target"] == 0
-    ):
-        st.success("✅ All governance indicators within acceptable limits.")
-
-
-# ==========================================================
-# EXPORTS
-# ==========================================================
-
-st.subheader("📥 Exports")
-
-st.markdown("""
-Download reports in CSV or PDF format. The **Enhanced PDF** includes
-a full multi-page management report with executive summary, risk
-breakdown, escalation status, control coverage, and recommendations.
-""")
-
-export_c1, export_c2, export_c3 = st.columns(3)
-
-with export_c1:
-    st.download_button(
-        "📥 Risk Register (CSV)",
-        filtered_risk_df.to_csv(index=False),
-        "risk_register_export.csv",
-        "text/csv",
-        key="csv_export"
-    )
-
-with export_c2:
-    legacy_pdf = generate_pdf(compliance_score, metrics, rating)
-    st.download_button(
-        "📄 Quick Summary (PDF)",
-        legacy_pdf,
-        "executive_summary.pdf",
-        "application/pdf",
-        key="legacy_pdf_export"
-    )
-
-with export_c3:
-    enhanced_pdf = generate_enhanced_pdf(
-        compliance_score=compliance_score,
-        metrics=metrics,
-        rating=rating,
-        risk_df=filtered_risk_df,
-        controls_df=controls_df,
-        escalated_df=escalated_df,
-        trend_df=trend_df
-    )
-    st.download_button(
-        "📑 Full Management Report (PDF)",
-        enhanced_pdf,
-        f"grc_management_report_{datetime.now().strftime('%Y_%m')}.pdf",
-        "application/pdf",
-        key="enhanced_pdf_export"
-    )
-
-
-# ==========================================================
-# AUTOMATED REMINDER DISPATCH (OUTLOOK INTEGRATION)
-# ==========================================================
-
-st.subheader("📨 Automated Reminder Dispatch")
-
-st.markdown("""
-Send risk remediation reminders directly via Outlook. Emails are
-dispatched through your authenticated Outlook desktop client —
-**no credentials are stored or transmitted**.
-
-🔒 **Security:** All emails route through corporate Exchange with
-full DLP, retention policies, and audit trail.
-""")
-
-# Initialise dispatcher (cached per session)
-if "email_dispatcher" not in st.session_state:
-    st.session_state.email_dispatcher = OutlookDispatcher()
-
-dispatcher = st.session_state.email_dispatcher
-
-# Connection status
-status_col1, status_col2, status_col3 = st.columns(3)
-with status_col1:
-    if dispatcher.is_available:
-        st.success("🟢 Outlook Connected")
-    else:
-        st.error("🔴 Outlook Not Available")
-with status_col2:
-    stats = dispatcher.get_session_stats()
-    st.metric("Emails Sent (Session)", stats["emails_sent"])
-with status_col3:
-    st.metric("Remaining Quota", stats["remaining_quota"])
-
-# --- Individual Reminder ---
-st.markdown("#### Send Individual Reminder")
-
-available_owners = sorted(filtered_risk_df["Risk_Owner"].unique())
-selected_owner = st.selectbox(
-    "Select Risk Owner", available_owners, key="reminder_owner_select"
-)
-
-owner_risks = filtered_risk_df[
-    filtered_risk_df["Risk_Owner"] == selected_owner
-]
-owner_email = owner_risks["Owner_Email"].iloc[0]
-open_risks = owner_risks[owner_risks["Status"] == "Open"]
-
-# Build email content
-risk_lines = []
-for _, row in open_risks.iterrows():
-    due_info = ""
-    if "Due_Date" in row and pd.notna(row.get("Due_Date")):
-        due_date = pd.to_datetime(row["Due_Date"])
-        days_diff = (datetime.now() - due_date).days
-        if days_diff > 0:
-            due_info = f" [OVERDUE by {days_diff} days]"
+    # Track individual risk
+    st.markdown("#### 🔍 Track Individual Risk")
+    all_ids = sorted(filtered_df["Risk_ID"].unique())
+    sel_id = st.selectbox("Select Risk ID", all_ids, key="t4_risk_select")
+    if sel_id:
+        hist_df = get_risk_history(sel_id)
+        if not hist_df.empty:
+            st.dataframe(hist_df, width="stretch")
+            if "residual_score" in hist_df.columns and hist_df["residual_score"].notna().any():
+                fig = px.line(hist_df, x="snapshot_date", y="residual_score",
+                              markers=True, title=f"Score Trend: {sel_id}")
+                st.plotly_chart(fig, width="stretch", key="t4_score_trend")
         else:
-            due_info = f" [Due: {due_date.strftime('%Y-%m-%d')}]"
-    risk_lines.append(
-        f"- {row['Risk_ID']} : {row['Risk_Name']} "
-        f"({row['Risk_Level']}){due_info}"
+            st.info(f"No history for {sel_id} yet. Builds over time with daily snapshots.")
+
+    st.divider()
+
+    # Monthly Management Report
+    st.markdown("#### 📊 Monthly Management Summary")
+    try:
+        trend_data = load_compliance_history()
+    except Exception:
+        trend_data = None
+
+    monthly = generate_monthly_summary(
+        compliance_score, metrics, rating, filtered_df, escalated_df, trend_data
     )
 
-risk_list = "\n".join(risk_lines)
-email_subject = "Risk Remediation Status Update Required"
-email_body = (
-    f"Hello {selected_owner},\n\n"
-    f"Please review the following open risks assigned to your team:\n\n"
-    f"{risk_list}\n\n"
-    f"Please provide an update on:\n\n"
-    f"  - Current remediation progress\n"
-    f"  - Expected completion date\n"
-    f"  - Any blockers preventing resolution\n\n"
-    f"Your response will support Governance & Assurance reporting.\n\n"
-    f"Kind Regards,\n"
-    f"Cyber Security Governance & Assurance\n\n"
-    f"---\n"
-    f"Sent via GRC Compliance Dashboard v{APP_VERSION}"
-)
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Score", f"{monthly['compliance']['score']}%",
+        delta=f"{monthly['compliance']['month_over_month_change']:+.0f}% MoM")
+    m2.metric("Closure Rate", f"{monthly['risks']['closure_rate']}%")
+    m3.metric("Escalation Rate", f"{monthly['escalation']['escalation_rate']}%")
+    m4.metric("Gap to 80%", f"{monthly['compliance']['gap_to_target']}%")
 
-# Preview
-st.markdown("**Preview:**")
-preview_col1, preview_col2 = st.columns([1, 3])
-with preview_col1:
-    st.markdown(f"**To:** {owner_email}")
-    st.markdown(f"**Subject:** {email_subject}")
-    st.markdown("**Priority:** High")
-with preview_col2:
-    st.text_area(
-        "Email Body", email_body, height=250,
-        key="email_preview", disabled=True
-    )
+    if trend_data is not None and not trend_data.empty:
+        fig = create_management_trend_chart(trend_data, theme_name=active_theme_name)
+        st.plotly_chart(fig, width="stretch", key="t4_mgmt_trend")
 
-# Send controls
-st.markdown("---")
-send_col1, send_col2 = st.columns([1, 3])
 
-with send_col1:
-    confirm_send = st.checkbox(
-        "I confirm this email is correct", key="confirm_individual_send"
-    )
+# ==========================================================
+# TAB 5: COMMUNICATIONS
+# ==========================================================
 
-with send_col2:
-    if st.button(
-        "📧 Send Reminder via Outlook",
-        disabled=not confirm_send,
-        key="send_individual_btn"
-    ):
-        if not dispatcher.is_available:
-            st.error(
-                "Outlook is not available. Ensure the desktop "
-                "client is running and try again."
-            )
+with tab5:
+    st.subheader("📨 Automated Reminder Dispatch")
+    st.markdown("""
+    Send risk remediation reminders via Outlook. Emails route through
+    corporate Exchange — **no credentials stored**.
+    """)
+
+    # Dispatcher init
+    if "email_dispatcher" not in st.session_state:
+        st.session_state.email_dispatcher = OutlookDispatcher()
+    dispatcher = st.session_state.email_dispatcher
+
+    # Status
+    stat1, stat2, stat3 = st.columns(3)
+    with stat1:
+        if dispatcher.is_available:
+            st.success("🟢 Outlook Connected")
         else:
-            result = dispatcher.send_reminder(
-                to=owner_email,
-                subject=email_subject,
-                body=email_body,
-                importance="High"
-            )
-            if result["success"]:
-                st.success(f"✅ {result['message']}")
-                log_action(
-                    action_type="email_sent",
-                    description=f"Reminder sent to {owner_email}",
-                    metadata=f"owner={selected_owner}"
-                )
+            st.error("🔴 Outlook Not Available")
+    with stat2:
+        stats = dispatcher.get_session_stats()
+        st.metric("Sent (Session)", stats["emails_sent"])
+    with stat3:
+        st.metric("Remaining", stats["remaining_quota"])
+
+    st.divider()
+
+    # Individual reminder
+    st.markdown("#### Send Individual Reminder")
+    avail_owners = sorted(filtered_df["Risk_Owner"].unique())
+    sel_owner = st.selectbox("Risk Owner", avail_owners, key="t5_owner")
+
+    owner_risks = filtered_df[filtered_df["Risk_Owner"] == sel_owner]
+    owner_email = owner_risks["Owner_Email"].iloc[0] if "Owner_Email" in owner_risks.columns else ""
+    open_risks = owner_risks[owner_risks["Status"] == "Open"]
+
+
+    # Build email
+    lines = []
+    for _, row in open_risks.iterrows():
+        due_info = ""
+        if "Due_Date" in row and pd.notna(row.get("Due_Date")):
+            dd = pd.to_datetime(row["Due_Date"])
+            diff = (datetime.now() - dd).days
+            due_info = f" [OVERDUE {diff}d]" if diff > 0 else f" [Due: {dd.strftime('%Y-%m-%d')}]"
+        lines.append(f"- {row['Risk_ID']}: {row['Risk_Name']} ({row['Risk_Level']}){due_info}")
+
+    email_body = (
+        f"Hello {sel_owner},\n\n"
+        f"Please review your open risks:\n\n" +
+        "\n".join(lines) + "\n\n"
+        f"Please provide:\n"
+        f"  - Remediation progress\n  - Expected completion\n  - Any blockers\n\n"
+        f"Kind Regards,\nCyber Security Governance & Assurance\n---\n"
+        f"GRC Dashboard v{APP_VERSION}"
+    )
+
+    with st.expander("📧 Preview Email", expanded=False):
+        st.markdown(f"**To:** {owner_email}")
+        st.markdown(f"**Subject:** Risk Remediation Status Update Required")
+        st.text_area("Body", email_body, height=200, disabled=True, key="t5_preview")
+
+    col_confirm, col_send = st.columns([1, 2])
+    with col_confirm:
+        confirmed = st.checkbox("I confirm this email", key="t5_confirm")
+    with col_send:
+        if st.button("📧 Send via Outlook", disabled=not confirmed, key="t5_send"):
+            if dispatcher.is_available:
+                result = dispatcher.send_reminder(to=owner_email,
+                    subject="Risk Remediation Status Update Required",
+                    body=email_body, importance="High")
+                if result["success"]:
+                    st.success(f"✅ {result['message']}")
+                    database_manager.log_action("email_sent",
+                        f"Reminder sent to {owner_email}", f"owner={sel_owner}")
+                else:
+                    st.error(f"❌ {result['message']}")
             else:
-                st.error(f"❌ {result['message']}")
+                st.error("Outlook not available.")
 
 
-# --- Bulk Reminder for Overdue Risks ---
-st.markdown("---")
-st.markdown("#### 🚨 Bulk Dispatch: All Overdue Risk Owners")
+    st.divider()
 
-st.markdown("""
-Send reminders to **all** owners with overdue risks. Each owner
-receives an individual email (no BCC) for full transparency.
-""")
-
-if not overdue_df.empty:
-    overdue_owners = (
-        overdue_df[["Risk_Owner", "Owner_Email"]]
-        .drop_duplicates()
-        .reset_index(drop=True)
-    )
-    st.dataframe(
-        overdue_owners, width="stretch",
-        column_config={
-            "Risk_Owner": "Recipient",
-            "Owner_Email": "Email Address"
-        }
-    )
-    st.caption(f"{len(overdue_owners)} owner(s) will receive reminders.")
-
-    bulk_col1, bulk_col2 = st.columns([1, 3])
-    with bulk_col1:
-        confirm_bulk = st.checkbox(
-            "I authorise bulk dispatch", key="confirm_bulk_send"
+    # Bulk dispatch
+    st.markdown("#### 🚨 Bulk Dispatch: Overdue Risk Owners")
+    overdue_for_email = escalated_df[escalated_df["Is_Overdue"] == True]
+    if not overdue_for_email.empty:
+        overdue_owners = (
+            overdue_for_email[["Risk_Owner", "Owner_Email"]]
+            .drop_duplicates().reset_index(drop=True)
         )
-    with bulk_col2:
-        if st.button(
-            f"🚨 Send {len(overdue_owners)} Reminder(s)",
-            disabled=not confirm_bulk,
-            key="send_bulk_btn"
-        ):
-            if not dispatcher.is_available:
-                st.error("Outlook is not available.")
-            else:
-                recipients = [
-                    {"email": r["Owner_Email"], "name": r["Risk_Owner"]}
-                    for _, r in overdue_owners.iterrows()
-                ]
-                bulk_body_template = (
-                    "Hello {name},\n\n"
-                    "This is an automated reminder that one or more "
-                    "risks assigned to your team have exceeded their "
-                    "remediation due date.\n\n"
-                    "Required actions:\n"
-                    "  - Review all overdue risks assigned to you\n"
-                    "  - Provide revised completion dates\n"
-                    "  - Escalate any blockers to your line manager\n\n"
-                    "Failure to respond may result in further "
-                    "escalation per the GRC Escalation Policy.\n\n"
-                    "Kind Regards,\n"
-                    "Cyber Security Governance & Assurance\n\n"
-                    "---\n"
-                    f"Sent via GRC Compliance Dashboard v{APP_VERSION}"
+        st.dataframe(overdue_owners, width="stretch")
+        st.caption(f"{len(overdue_owners)} recipient(s)")
+
+        bulk_confirm = st.checkbox("I authorise bulk dispatch", key="t5_bulk_confirm")
+        if st.button(f"🚨 Send {len(overdue_owners)} Reminder(s)",
+                     disabled=not bulk_confirm, key="t5_bulk_send"):
+            if dispatcher.is_available:
+                recipients = [{"email": r["Owner_Email"], "name": r["Risk_Owner"]}
+                              for _, r in overdue_owners.iterrows()]
+                template = (
+                    "Hello {name},\n\nOverdue risks require immediate attention.\n\n"
+                    "Actions:\n  - Review overdue risks\n  - Provide revised dates\n"
+                    "  - Escalate blockers\n\nKind Regards,\nGRC Team"
                 )
                 results = dispatcher.send_bulk_reminders(
                     recipients=recipients,
-                    subject="URGENT: Overdue Risk Remediation Required",
-                    body_template=bulk_body_template,
-                    importance="High"
-                )
+                    subject="URGENT: Overdue Risk Remediation",
+                    body_template=template, importance="High")
                 sent = sum(1 for r in results if r["success"])
-                failed = len(results) - sent
                 if sent > 0:
-                    st.success(f"✅ {sent} reminder(s) sent successfully.")
-                    log_action(
-                        action_type="email_bulk_sent",
-                        description=f"Bulk reminders sent to {sent} owner(s)",
-                        metadata=f"sent={sent},failed={failed}"
-                    )
-                if failed > 0:
-                    st.error(f"❌ {failed} email(s) failed to send.")
-                for r in results:
-                    if not r["success"]:
-                        st.warning(f"⚠️ {r['recipient']}: {r['message']}")
-else:
-    st.info("✅ No overdue risks — no bulk reminders required.")
+                    st.success(f"✅ {sent} reminder(s) sent")
+                    database_manager.log_action("email_bulk_sent",
+                        f"Bulk sent to {sent} owners", f"sent={sent}")
+            else:
+                st.error("Outlook not available.")
+    else:
+        st.info("✅ No overdue risks — no reminders needed.")
 
+    st.divider()
 
-# --- Audit Log ---
-st.markdown("---")
-st.markdown("#### 📋 Email Audit Log")
-st.markdown("""
-All dispatch activity is recorded at `logs/email_audit.csv`
-for governance and compliance purposes.
-""")
-
-audit_entries = dispatcher.get_audit_log()
-if audit_entries:
-    audit_df = pd.DataFrame(audit_entries)
-    st.dataframe(audit_df, width="stretch")
-    st.caption(f"Showing {len(audit_entries)} audit entries.")
-else:
-    st.info("No email dispatch activity recorded yet.")
+    # Email directory
+    st.markdown("#### 📧 Risk Owner Directory")
+    if "Owner_Email" in risk_df.columns:
+        directory = risk_df[["Risk_Owner", "Owner_Email"]].drop_duplicates().sort_values("Risk_Owner")
+        st.dataframe(directory, width="stretch")
 
 
 # ==========================================================
-# AUDIT TRAIL
+# TAB 6: REPORTS & EXPORTS
 # ==========================================================
 
-st.subheader("📋 Audit Trail")
+with tab6:
+    st.subheader("📥 Reports & Exports")
 
-st.markdown("""
-All significant dashboard actions are recorded for governance
-evidence and compliance purposes. This provides a full history
-of who did what and when.
-""")
+    # Export buttons
+    st.markdown("#### Download Reports")
+    exp1, exp2, exp3 = st.columns(3)
 
-# Audit KPIs
-audit_count = get_audit_count()
-audit_summary = get_audit_summary()
-today_actions = get_today_actions()
+    with exp1:
+        st.download_button(
+            "📥 Risk Register (CSV)",
+            filtered_df.to_csv(index=False),
+            "risk_register_export.csv", "text/csv",
+            key="t6_csv")
 
-aud_c1, aud_c2, aud_c3 = st.columns(3)
-aud_c1.metric("Total Actions Logged", audit_count)
-aud_c2.metric("Actions Today", len(today_actions))
-aud_c3.metric("Action Types", len(audit_summary))
+    with exp2:
+        pdf = generate_pdf(compliance_score, metrics, rating)
+        st.download_button(
+            "📄 Quick Summary (PDF)",
+            pdf, "executive_summary.pdf", "application/pdf",
+            key="t6_pdf_quick")
 
-# Filter controls
-st.markdown("#### Action Log")
+    with exp3:
+        try:
+            trend_for_pdf = load_compliance_history()
+        except Exception:
+            trend_for_pdf = None
+        enhanced = generate_enhanced_pdf(
+            compliance_score=compliance_score,
+            metrics=metrics, rating=rating,
+            risk_df=filtered_df, controls_df=controls_df,
+            escalated_df=escalated_df, trend_df=trend_for_pdf)
+        st.download_button(
+            "📑 Full Report (PDF)",
+            enhanced,
+            f"grc_report_{datetime.now().strftime('%Y_%m')}.pdf",
+            "application/pdf", key="t6_pdf_full")
 
-audit_filter_col1, audit_filter_col2 = st.columns([1, 3])
+    st.divider()
 
-with audit_filter_col1:
+    # Audit Trail
+    st.markdown("#### 📋 Audit Trail")
+    audit_count = get_audit_count()
+    audit_summary = get_audit_summary()
+
+    a1, a2, a3 = st.columns(3)
+    a1.metric("Total Actions", audit_count)
+    a2.metric("Today", len(get_today_actions()))
+    a3.metric("Types", len(audit_summary))
+
+
+    # Filter and display audit
     filter_type = st.selectbox(
         "Filter by Action",
         options=["All"] + list(audit_summary.keys()),
-        key="audit_filter_type"
-    )
+        key="t6_audit_filter")
 
-# Retrieve filtered trail
-selected_type = None if filter_type == "All" else filter_type
-audit_df = get_audit_trail(action_type=selected_type, limit=50)
+    sel_type = None if filter_type == "All" else filter_type
+    audit_df = get_audit_trail(action_type=sel_type, limit=50)
 
-if not audit_df.empty:
-    st.dataframe(
-        audit_df[
-            ["timestamp", "action_type", "description", "metadata"]
-        ],
-        width="stretch",
-        column_config={
-            "timestamp": "Time",
-            "action_type": "Action",
-            "description": "Description",
-            "metadata": "Details",
-        }
-    )
-    st.caption(f"Showing {len(audit_df)} most recent entries.")
-else:
-    st.info("No audit trail entries recorded yet.")
-
-# Export
-st.download_button(
-    "📥 Export Audit Trail (CSV)",
-    export_audit_trail(),
-    f"audit_trail_{datetime.now().strftime('%Y%m%d')}.csv",
-    "text/csv",
-    key="audit_export_btn"
-)
-
-
-# ==========================================================
-# RISK OWNER EMAIL DIRECTORY
-# ==========================================================
-
-st.subheader("📧 Risk Owner Email Directory")
-
-owner_directory = (
-    risk_df[["Risk_Owner", "Owner_Email"]]
-    .drop_duplicates()
-    .sort_values("Risk_Owner")
-)
-st.dataframe(owner_directory, width="stretch")
-
-
-# ==========================================================
-# JIRA INTEGRATION
-# ==========================================================
-
-st.subheader("🔗 Jira Integration")
-
-st.markdown("""
-Push GRC risks directly to your Jira project as tracked issues.
-Once pushed, use **Sync Statuses** to pull Jira progress back
-into the dashboard.
-
-**How it works:**
-- Each risk creates a Jira issue with a `[GRC-RXXX]` prefix in the summary
-- Priority maps automatically: High → High, Medium → Medium, Low → Low
-- Closing a Jira issue updates the risk status to **Closed** on next sync
-- Duplicate detection prevents the same risk being pushed twice
-""")
-
-# --- Configuration ---
-with st.expander("⚙️ Jira Connection Settings", expanded=False):
-    st.markdown("""
-    Enter your Atlassian credentials below. Your API token is used
-    instead of your password — generate one at
-    [id.atlassian.com](https://id.atlassian.com/manage-profile/security/api-tokens).
-
-    **These are not stored anywhere** — you will need to re-enter
-    them each session.
-    """)
-
-    jira_col1, jira_col2 = st.columns(2)
-
-    with jira_col1:
-        jira_url = st.text_input(
-            "Atlassian URL",
-            placeholder="https://yourcompany.atlassian.net",
-            key="jira_url",
-            help="Your Jira Cloud base URL"
-        )
-        jira_email = st.text_input(
-            "Atlassian Email",
-            placeholder="you@company.com",
-            key="jira_email",
-            help="The email address on your Atlassian account"
-        )
-
-    with jira_col2:
-        jira_project = st.text_input(
-            "Project Key",
-            placeholder="SEC",
-            key="jira_project",
-            help="The Jira project key to create issues in (e.g. SEC, GRC, CYBER)"
-        )
-        jira_token = st.text_input(
-            "API Token",
-            type="password",
-            placeholder="Your Atlassian API token",
-            key="jira_token",
-            help="Generate at id.atlassian.com — never your password"
-        )
-
-    jira_issue_type = st.selectbox(
-        "Issue Type",
-        options=["Task", "Story", "Bug", "Improvement"],
-        index=0,
-        key="jira_issue_type",
-        help="Jira issue type to create for each risk"
-    )
-
-    connect_btn = st.button("🔌 Connect to Jira", key="jira_connect_btn")
-
-    if connect_btn:
-        if not all([jira_url, jira_email, jira_project, jira_token]):
-            st.error("Please fill in all four fields before connecting.")
-        else:
-            with st.spinner("Connecting to Jira..."):
-                client = build_jira_client_from_config(
-                    base_url=jira_url,
-                    email=jira_email,
-                    api_token=jira_token,
-                    project_key=jira_project,
-                    issue_type=jira_issue_type,
-                )
-                st.session_state.jira_client = client
-                info = client.get_connection_info()
-
-            if client.is_available:
-                st.success(
-                    f"✅ Connected to Jira — Project: **{info['project_key']}** "
-                    f"at {info['base_url']}"
-                )
-                log_action(
-                    action_type="jira_connect",
-                    description=f"Connected to Jira project {info['project_key']}",
-                    metadata=f"url={info['base_url']}"
-                )
-            else:
-                st.error(
-                    "❌ Could not connect to Jira. Check your URL, email, "
-                    "API token, and that your Atlassian account has "
-                    "permission to access the project."
-                )
-
-# --- Connection Status Banner ---
-jira_client = st.session_state.get("jira_client", None)
-
-jira_status_col1, jira_status_col2, jira_status_col3 = st.columns(3)
-
-with jira_status_col1:
-    if jira_client and jira_client.is_available:
-        info = jira_client.get_connection_info()
-        st.success(f"🟢 Jira Connected — {info['project_key']}")
-    else:
-        st.warning("🔴 Jira Not Connected — configure above")
-
-with jira_status_col2:
-    open_risk_count = len(filtered_risk_df[filtered_risk_df["Status"] == "Open"])
-    st.metric("Open Risks Available to Push", open_risk_count)
-
-with jira_status_col3:
-    high_risk_count = len(
-        filtered_risk_df[
-            (filtered_risk_df["Status"] == "Open") &
-            (filtered_risk_df["Risk_Level"] == "High")
-        ]
-    )
-    st.metric("High Severity Open Risks", high_risk_count)
-
-# --- Push Controls ---
-st.markdown("#### Push Risks to Jira")
-
-push_col1, push_col2 = st.columns([2, 1])
-
-with push_col1:
-    push_mode = st.radio(
-        "Select risks to push",
-        options=[
-            "All open risks",
-            "High severity open risks only",
-            "Single risk",
-        ],
-        key="jira_push_mode",
-        horizontal=True
-    )
-
-with push_col2:
-    st.markdown("<br>", unsafe_allow_html=True)
-    confirm_push = st.checkbox(
-        "I confirm this push is correct",
-        key="jira_confirm_push"
-    )
-
-# Single risk selector
-if push_mode == "Single risk":
-    open_risks_df = filtered_risk_df[filtered_risk_df["Status"] == "Open"]
-    if not open_risks_df.empty:
-        risk_options = open_risks_df.apply(
-            lambda r: f"{r['Risk_ID']} — {r['Risk_Name']} ({r['Risk_Level']})",
-            axis=1
-        ).tolist()
-        selected_risk_label = st.selectbox(
-            "Select risk to push",
-            options=risk_options,
-            key="jira_single_risk_select"
-        )
-        selected_risk_id = selected_risk_label.split(" — ")[0]
-    else:
-        st.info("No open risks to push.")
-        selected_risk_id = None
-else:
-    selected_risk_id = None
-
-# Push button
-push_btn = st.button(
-    "🚀 Push to Jira",
-    disabled=not confirm_push,
-    key="jira_push_btn"
-)
-
-if push_btn:
-    if not jira_client or not jira_client.is_available:
-        st.error("Jira is not connected. Configure your credentials above.")
-    else:
-        with st.spinner("Pushing risks to Jira..."):
-
-            if push_mode == "Single risk" and selected_risk_id:
-                row = filtered_risk_df[
-                    filtered_risk_df["Risk_ID"] == selected_risk_id
-                ].iloc[0]
-                results = [jira_client.push_risk(row)]
-
-            elif push_mode == "High severity open risks only":
-                results = jira_client.push_bulk(
-                    filtered_risk_df,
-                    only_open=True,
-                    only_high=True
-                )
-
-            else:  # All open risks
-                results = jira_client.push_bulk(
-                    filtered_risk_df,
-                    only_open=True,
-                    only_high=False
-                )
-
-        # Display summary
-        summary = summarise_push_results(results)
-
-        res_c1, res_c2, res_c3, res_c4 = st.columns(4)
-        res_c1.metric("Total Processed", summary["total"])
-        res_c2.metric("✅ Created", summary["succeeded"])
-        res_c3.metric("⚠️ Already Existed", summary["already_existed"])
-        res_c4.metric("❌ Failed", summary["failed"])
-
-        # Show created issues as clickable links
-        created = [r for r in results if r.success and "already exists" not in r.message]
-        if created:
-            st.markdown("**Issues Created:**")
-            for r in created:
-                st.markdown(
-                    f"- **{r.risk_id}** → "
-                    f"[{r.issue_key}]({r.issue_url}) — {r.message}"
-                )
-
-        # Show already existing
-        existed = [r for r in results if r.success and "already exists" in r.message]
-        if existed:
-            st.markdown("**Already in Jira:**")
-            for r in existed:
-                st.markdown(
-                    f"- **{r.risk_id}** → "
-                    f"[{r.issue_key}]({r.issue_url})"
-                )
-
-        # Show failures
-        if summary["failed"] > 0:
-            st.markdown("**Failures:**")
-            for err in summary["errors"]:
-                st.warning(f"⚠️ {err['risk_id']}: {err['message']}")
-
-        # Log to audit trail
-        log_action(
-            action_type="jira_push",
-            description=(
-                f"Pushed {summary['succeeded']} risk(s) to Jira. "
-                f"{summary['already_existed']} already existed. "
-                f"{summary['failed']} failed."
-            ),
-            metadata=f"mode={push_mode}"
-        )
-
-# --- Sync Status from Jira ---
-st.markdown("---")
-st.markdown("#### 🔄 Sync Status from Jira")
-
-st.markdown("""
-Pull current issue statuses from Jira back into the risk register.
-Risks linked to a **Done** Jira issue will show as **Closed**.
-""")
-
-sync_btn = st.button(
-    "🔄 Sync Jira Statuses",
-    key="jira_sync_btn",
-    disabled=(not jira_client or not jira_client.is_available)
-)
-
-if sync_btn:
-    with st.spinner("Fetching statuses from Jira..."):
-        synced_df = jira_client.sync_statuses(filtered_risk_df)
-
-    # Show risks that have a linked Jira issue
-    linked_df = synced_df[synced_df["Jira_Key"] != ""]
-
-    if not linked_df.empty:
-        st.markdown(f"**{len(linked_df)} risk(s) linked to Jira issues:**")
-
-        display_cols = [
-            "Risk_ID", "Risk_Name", "Risk_Level",
-            "Status", "Jira_Key", "Jira_Status"
-        ]
-        available = [c for c in display_cols if c in linked_df.columns]
-
+    if not audit_df.empty:
         st.dataframe(
-            linked_df[available],
-            width="stretch",
-            column_config={
-                "Jira_Key": st.column_config.LinkColumn(
-                    "Jira Issue",
-                    display_text="Open in Jira"
-                ) if "Jira_URL" in linked_df.columns else "Jira Issue",
-                "Jira_Status": "Jira Status",
-            }
-        )
-
-        # Highlight risks where Jira says Done but GRC says Open
-        mismatch_df = linked_df[
-            (linked_df["Jira_Status"].str.lower().isin(["done", "closed", "resolved"]))
-            & (linked_df["Status"] == "Open")
-        ]
-
-        if not mismatch_df.empty:
-            st.warning(
-                f"⚠️ {len(mismatch_df)} risk(s) are marked **Done in Jira** "
-                f"but still **Open in GRC**. "
-                f"Update your risk register CSV to close these."
-            )
-            st.dataframe(
-                mismatch_df[["Risk_ID", "Risk_Name", "Status", "Jira_Key", "Jira_Status"]],
-                width="stretch"
-            )
-
-        log_action(
-            action_type="jira_sync",
-            description=f"Synced Jira statuses — {len(linked_df)} linked risk(s)",
-            metadata=f"linked={len(linked_df)}"
-        )
-
+            audit_df[["timestamp", "action_type", "description", "metadata"]],
+            width="stretch")
+        st.caption(f"Showing {len(audit_df)} entries")
     else:
-        st.info(
-            "No linked Jira issues found. Push some risks to Jira first, "
-            "then sync to see their status here."
-        )
+        st.info("No audit entries yet.")
+
+    st.download_button(
+        "📥 Export Audit Trail (CSV)",
+        export_audit_trail(),
+        f"audit_trail_{datetime.now().strftime('%Y%m%d')}.csv",
+        "text/csv", key="t6_audit_csv")
+
+    st.divider()
+
+    # Database status
+    st.markdown("#### 💾 Database Status")
+    db_status = database_manager.get_status()
+    st.markdown(f"**Backend:** {db_status['display_name']}")
+    st.markdown(f"**Ready:** {'✅' if db_status['is_ready'] else '❌'}")
 
 
 # ==========================================================
@@ -1594,4 +721,4 @@ if sync_btn:
 # ==========================================================
 
 st.divider()
-st.caption(f"GRC Compliance Dashboard | Version {APP_VERSION}")
+st.caption(f"GRC Compliance Dashboard | v{APP_VERSION} | {datetime.now().strftime('%Y')}")
