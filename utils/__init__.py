@@ -100,6 +100,8 @@ from .theme import (
     get_custom_css,
 )
 
+from .cloud_auth import check_password
+
 from .jira_integration import (
     JiraClient,
     JiraConfig,

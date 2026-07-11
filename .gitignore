@@ -4,3 +4,5 @@ __pycache__/
 .vscode/
 logs/
 data/grc_history.db
+.streamlit/secrets.toml
+.streamlit/credentials.yaml

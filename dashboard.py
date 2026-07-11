@@ -1,12 +1,13 @@
 """
 GRC Compliance Dashboard
-Version: 2.4.0
+Version: 2.5.0
 Author: Taiwo Durodola-Tunde
 
 Main application file — handles layout, UI components, and
 orchestration. All business logic lives in the utils/ package.
 
 Release Notes:
+    v2.5.0 - Streamlit Cloud deployment, password gate, cloud-ready config
     v2.4.0 - Config management, multi-org DB, email providers, auth, error handling
     v2.3.0 - Jira integration, init_database ordering fix
     v2.2.0 - Audit, History & Intelligence
@@ -34,6 +35,7 @@ import pandas as pd
 import streamlit as st
 
 from utils.auth import require_auth, get_current_user, show_logout_button
+from utils.cloud_auth import check_password
 
 # Import all utilities from the modular package
 from utils import (
@@ -104,7 +106,7 @@ from utils import (
 # CONFIGURATION
 # ==========================================================
 
-APP_VERSION = "2.4.0"
+APP_VERSION = "2.5.0"
 
 # Set version in PDF module
 set_version(APP_VERSION)
@@ -118,6 +120,11 @@ st.set_page_config(
 # AUTHENTICATION — must run before any content is rendered
 # ==========================================================
 
+# Cloud password gate (simple shared password)
+if not check_password():
+    st.stop()
+
+# Full RBAC auth (when GRC_AUTH_ENABLED=1)
 require_auth()
 
 # --- Sidebar: User info & logout ---
@@ -203,10 +210,6 @@ except Exception as e:
     st.warning(f"Could not load controls data: {e}")
     _logger.exception("Failed to load controls")
     controls_df = None
-
-# Stop if the core risk register failed and no upload is present
-if risk_df is None:
-
 
 # Stop if the core risk register failed and no upload is present
 if risk_df is None:

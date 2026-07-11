@@ -1,0 +1,2 @@
+# System-level packages for Streamlit Cloud (Debian-based)
+# Leave empty if none needed — file must exist for Cloud deployment

@@ -8,7 +8,7 @@ Designed for Cyber Security Governance & Assurance teams to provide executive-le
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.59-red?logo=streamlit&logoColor=white)
 ![Plotly](https://img.shields.io/badge/Plotly-6.8-purple?logo=plotly&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Version](https://img.shields.io/badge/Version-2.4.0-orange)
+![Version](https://img.shields.io/badge/Version-2.5.0-orange)
 
 ---
 
@@ -290,6 +290,38 @@ pip install -r requirements.txt
 ```bash
 streamlit run dashboard.py
 ```
+
+---
+
+## Cloud Deployment (Streamlit Cloud)
+
+The dashboard is cloud-ready and can be deployed to [Streamlit Community Cloud](https://share.streamlit.io) for free.
+
+### Deploy Steps
+
+1. **Push to GitHub** (your repo is already public ✅)
+
+2. **Go to** [share.streamlit.io](https://share.streamlit.io) and sign in with GitHub
+
+3. **Click** "New app" → select your repo → set main file to `dashboard.py`
+
+4. **Set secrets** in the app's Settings → Secrets panel:
+   ```toml
+   [passwords]
+   dashboard_password = "YourSecurePassword123"
+   
+   [app]
+   environment = "production"
+   ```
+
+5. **Deploy** — your app will be live at `https://your-app.streamlit.app`
+
+### Cloud Notes
+
+- **Password gate:** Visitors must enter the password you set in Secrets
+- **Outlook email:** Not available on cloud (Windows-only). Dashboard gracefully shows "Not Available"
+- **SQLite database:** Works on cloud but resets on each reboot (use PostgreSQL for persistent data in v3.0)
+- **Requirements:** Streamlit Cloud uses `requirements.txt` — pywin32 will fail silently on Linux (handled gracefully)
 
 ---
 
