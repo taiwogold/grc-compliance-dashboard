@@ -8,7 +8,7 @@ Designed for Cyber Security Governance & Assurance teams to provide executive-le
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.59-red?logo=streamlit&logoColor=white)
 ![Plotly](https://img.shields.io/badge/Plotly-6.8-purple?logo=plotly&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Version](https://img.shields.io/badge/Version-2.2.0-orange)
+![Version](https://img.shields.io/badge/Version-2.3.0-orange)
 
 ---
 
@@ -181,6 +181,19 @@ The application follows a **modular architecture** — `dashboard.py` is a thin 
 | **Input Validation** | Email format checks, injection prevention |
 | **Confirmation Required** | Checkbox + button before any dispatch |
 
+### Jira Integration (v2.3.0)
+
+| Feature | Description |
+|---------|-------------|
+| **Push Single Risk** | Push any individual risk to Jira as a tracked issue |
+| **Bulk Push** | Push all open risks or high-severity risks in one click |
+| **Duplicate Detection** | Checks for existing issues before creating to prevent duplicates |
+| **Two-Way Sync** | Pull current Jira status back into the dashboard |
+| **Mismatch Detection** | Flags risks marked Done in Jira but still Open in GRC |
+| **Priority Mapping** | High/Medium/Low maps automatically to Jira priority |
+| **Audit Logging** | Every push and sync recorded in the GRC audit trail |
+| **Graceful Degradation** | Dashboard loads normally if Jira is unreachable |
+
 ### Dark Mode (v2.2.0)
 
 | Feature | Description |
@@ -250,6 +263,7 @@ streamlit run dashboard.py
 | **Database** | SQLite (risk history, audit trail) |
 | **PDF Generation** | ReportLab (SimpleDocTemplate, Tables, Styles) |
 | **Email Dispatch** | pywin32 (Outlook COM automation) |
+| **Jira Integration** | Jira REST API v3 (requests, Basic Auth with API token) |
 | **Version Control** | Git, GitHub |
 
 ---
@@ -258,7 +272,8 @@ streamlit run dashboard.py
 
 | Version | Release | Features |
 |---------|---------|----------|
-| **v2.2.0** | Current | Risk scoring, SQLite history, audit trail, trend alerts, dark mode |
+| **v2.3.0** | Current | Jira integration — push risks as issues, sync statuses, mismatch detection, audit logging |
+| **v2.2.0** | ✅ | Risk scoring, SQLite history, audit trail, trend alerts, dark mode |
 | **v2.1.1** | ✅ | Modular refactor — extracted utils package |
 | **v2.1.0** | ✅ | Outlook integration, automated reminder dispatch |
 | **v2.0.2** | ✅ | Monthly management reports, enhanced PDF exports |

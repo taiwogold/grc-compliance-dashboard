@@ -1,6 +1,6 @@
 """
 GRC Compliance Dashboard - Utility Modules
-Version: 2.1.1
+Version: 2.3.0
 
 Package Structure:
     data_loader.py     - CSV loading, validation, caching
@@ -90,4 +90,12 @@ from .theme import (
     apply_chart_theme,
     get_available_themes,
     get_custom_css,
+)
+
+from .jira_integration import (
+    JiraClient,
+    JiraConfig,
+    JiraIssueResult,
+    build_jira_client_from_config,
+    summarise_push_results,
 )

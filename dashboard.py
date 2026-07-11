@@ -90,6 +90,9 @@ from utils import (
     apply_chart_theme,
     get_available_themes,
     get_custom_css,
+    # Jira Integration
+    build_jira_client_from_config,
+    summarise_push_results,
 )
 
 
@@ -97,7 +100,7 @@ from utils import (
 # CONFIGURATION
 # ==========================================================
 
-APP_VERSION = "2.2.0"
+APP_VERSION = "2.3.0"
 
 # Set version in PDF module
 set_version(APP_VERSION)
@@ -202,6 +205,23 @@ filtered_risk_df = risk_df[
 if filtered_risk_df.empty:
     st.warning("No records found for the selected filters.")
     st.stop()
+
+
+# ==========================================================
+# DATABASE INITIALISATION
+# Must run before any database reads (alerts, delta, snapshots)
+# ==========================================================
+
+init_database()
+init_audit_table()
+
+# Log dashboard load (once per session)
+if "audit_load_logged" not in st.session_state:
+    log_action(
+        action_type="dashboard_load",
+        description="Dashboard loaded and initialised"
+    )
+    st.session_state.audit_load_logged = True
 
 
 # ==========================================================
@@ -357,18 +377,7 @@ controls reduce the score by 50%.
 # Apply scoring
 scored_df = calculate_risk_scores(filtered_risk_df)
 
-# --- Initialise database and capture daily snapshot ---
-init_database()
-init_audit_table()
-
-# Log dashboard load (once per session)
-if "audit_load_logged" not in st.session_state:
-    log_action(
-        action_type="dashboard_load",
-        description="Dashboard loaded and initialised"
-    )
-    st.session_state.audit_load_logged = True
-
+# --- Capture daily snapshot ---
 capture_snapshot(
     risk_df=filtered_risk_df,
     compliance_score=compliance_score,
@@ -1161,6 +1170,329 @@ owner_directory = (
     .sort_values("Risk_Owner")
 )
 st.dataframe(owner_directory, width="stretch")
+
+
+# ==========================================================
+# JIRA INTEGRATION
+# ==========================================================
+
+st.subheader("🔗 Jira Integration")
+
+st.markdown("""
+Push GRC risks directly to your Jira project as tracked issues.
+Once pushed, use **Sync Statuses** to pull Jira progress back
+into the dashboard.
+
+**How it works:**
+- Each risk creates a Jira issue with a `[GRC-RXXX]` prefix in the summary
+- Priority maps automatically: High → High, Medium → Medium, Low → Low
+- Closing a Jira issue updates the risk status to **Closed** on next sync
+- Duplicate detection prevents the same risk being pushed twice
+""")
+
+# --- Configuration ---
+with st.expander("⚙️ Jira Connection Settings", expanded=False):
+    st.markdown("""
+    Enter your Atlassian credentials below. Your API token is used
+    instead of your password — generate one at
+    [id.atlassian.com](https://id.atlassian.com/manage-profile/security/api-tokens).
+
+    **These are not stored anywhere** — you will need to re-enter
+    them each session.
+    """)
+
+    jira_col1, jira_col2 = st.columns(2)
+
+    with jira_col1:
+        jira_url = st.text_input(
+            "Atlassian URL",
+            placeholder="https://yourcompany.atlassian.net",
+            key="jira_url",
+            help="Your Jira Cloud base URL"
+        )
+        jira_email = st.text_input(
+            "Atlassian Email",
+            placeholder="you@company.com",
+            key="jira_email",
+            help="The email address on your Atlassian account"
+        )
+
+    with jira_col2:
+        jira_project = st.text_input(
+            "Project Key",
+            placeholder="SEC",
+            key="jira_project",
+            help="The Jira project key to create issues in (e.g. SEC, GRC, CYBER)"
+        )
+        jira_token = st.text_input(
+            "API Token",
+            type="password",
+            placeholder="Your Atlassian API token",
+            key="jira_token",
+            help="Generate at id.atlassian.com — never your password"
+        )
+
+    jira_issue_type = st.selectbox(
+        "Issue Type",
+        options=["Task", "Story", "Bug", "Improvement"],
+        index=0,
+        key="jira_issue_type",
+        help="Jira issue type to create for each risk"
+    )
+
+    connect_btn = st.button("🔌 Connect to Jira", key="jira_connect_btn")
+
+    if connect_btn:
+        if not all([jira_url, jira_email, jira_project, jira_token]):
+            st.error("Please fill in all four fields before connecting.")
+        else:
+            with st.spinner("Connecting to Jira..."):
+                client = build_jira_client_from_config(
+                    base_url=jira_url,
+                    email=jira_email,
+                    api_token=jira_token,
+                    project_key=jira_project,
+                    issue_type=jira_issue_type,
+                )
+                st.session_state.jira_client = client
+                info = client.get_connection_info()
+
+            if client.is_available:
+                st.success(
+                    f"✅ Connected to Jira — Project: **{info['project_key']}** "
+                    f"at {info['base_url']}"
+                )
+                log_action(
+                    action_type="jira_connect",
+                    description=f"Connected to Jira project {info['project_key']}",
+                    metadata=f"url={info['base_url']}"
+                )
+            else:
+                st.error(
+                    "❌ Could not connect to Jira. Check your URL, email, "
+                    "API token, and that your Atlassian account has "
+                    "permission to access the project."
+                )
+
+# --- Connection Status Banner ---
+jira_client = st.session_state.get("jira_client", None)
+
+jira_status_col1, jira_status_col2, jira_status_col3 = st.columns(3)
+
+with jira_status_col1:
+    if jira_client and jira_client.is_available:
+        info = jira_client.get_connection_info()
+        st.success(f"🟢 Jira Connected — {info['project_key']}")
+    else:
+        st.warning("🔴 Jira Not Connected — configure above")
+
+with jira_status_col2:
+    open_risk_count = len(filtered_risk_df[filtered_risk_df["Status"] == "Open"])
+    st.metric("Open Risks Available to Push", open_risk_count)
+
+with jira_status_col3:
+    high_risk_count = len(
+        filtered_risk_df[
+            (filtered_risk_df["Status"] == "Open") &
+            (filtered_risk_df["Risk_Level"] == "High")
+        ]
+    )
+    st.metric("High Severity Open Risks", high_risk_count)
+
+# --- Push Controls ---
+st.markdown("#### Push Risks to Jira")
+
+push_col1, push_col2 = st.columns([2, 1])
+
+with push_col1:
+    push_mode = st.radio(
+        "Select risks to push",
+        options=[
+            "All open risks",
+            "High severity open risks only",
+            "Single risk",
+        ],
+        key="jira_push_mode",
+        horizontal=True
+    )
+
+with push_col2:
+    st.markdown("<br>", unsafe_allow_html=True)
+    confirm_push = st.checkbox(
+        "I confirm this push is correct",
+        key="jira_confirm_push"
+    )
+
+# Single risk selector
+if push_mode == "Single risk":
+    open_risks_df = filtered_risk_df[filtered_risk_df["Status"] == "Open"]
+    if not open_risks_df.empty:
+        risk_options = open_risks_df.apply(
+            lambda r: f"{r['Risk_ID']} — {r['Risk_Name']} ({r['Risk_Level']})",
+            axis=1
+        ).tolist()
+        selected_risk_label = st.selectbox(
+            "Select risk to push",
+            options=risk_options,
+            key="jira_single_risk_select"
+        )
+        selected_risk_id = selected_risk_label.split(" — ")[0]
+    else:
+        st.info("No open risks to push.")
+        selected_risk_id = None
+else:
+    selected_risk_id = None
+
+# Push button
+push_btn = st.button(
+    "🚀 Push to Jira",
+    disabled=not confirm_push,
+    key="jira_push_btn"
+)
+
+if push_btn:
+    if not jira_client or not jira_client.is_available:
+        st.error("Jira is not connected. Configure your credentials above.")
+    else:
+        with st.spinner("Pushing risks to Jira..."):
+
+            if push_mode == "Single risk" and selected_risk_id:
+                row = filtered_risk_df[
+                    filtered_risk_df["Risk_ID"] == selected_risk_id
+                ].iloc[0]
+                results = [jira_client.push_risk(row)]
+
+            elif push_mode == "High severity open risks only":
+                results = jira_client.push_bulk(
+                    filtered_risk_df,
+                    only_open=True,
+                    only_high=True
+                )
+
+            else:  # All open risks
+                results = jira_client.push_bulk(
+                    filtered_risk_df,
+                    only_open=True,
+                    only_high=False
+                )
+
+        # Display summary
+        summary = summarise_push_results(results)
+
+        res_c1, res_c2, res_c3, res_c4 = st.columns(4)
+        res_c1.metric("Total Processed", summary["total"])
+        res_c2.metric("✅ Created", summary["succeeded"])
+        res_c3.metric("⚠️ Already Existed", summary["already_existed"])
+        res_c4.metric("❌ Failed", summary["failed"])
+
+        # Show created issues as clickable links
+        created = [r for r in results if r.success and "already exists" not in r.message]
+        if created:
+            st.markdown("**Issues Created:**")
+            for r in created:
+                st.markdown(
+                    f"- **{r.risk_id}** → "
+                    f"[{r.issue_key}]({r.issue_url}) — {r.message}"
+                )
+
+        # Show already existing
+        existed = [r for r in results if r.success and "already exists" in r.message]
+        if existed:
+            st.markdown("**Already in Jira:**")
+            for r in existed:
+                st.markdown(
+                    f"- **{r.risk_id}** → "
+                    f"[{r.issue_key}]({r.issue_url})"
+                )
+
+        # Show failures
+        if summary["failed"] > 0:
+            st.markdown("**Failures:**")
+            for err in summary["errors"]:
+                st.warning(f"⚠️ {err['risk_id']}: {err['message']}")
+
+        # Log to audit trail
+        log_action(
+            action_type="jira_push",
+            description=(
+                f"Pushed {summary['succeeded']} risk(s) to Jira. "
+                f"{summary['already_existed']} already existed. "
+                f"{summary['failed']} failed."
+            ),
+            metadata=f"mode={push_mode}"
+        )
+
+# --- Sync Status from Jira ---
+st.markdown("---")
+st.markdown("#### 🔄 Sync Status from Jira")
+
+st.markdown("""
+Pull current issue statuses from Jira back into the risk register.
+Risks linked to a **Done** Jira issue will show as **Closed**.
+""")
+
+sync_btn = st.button(
+    "🔄 Sync Jira Statuses",
+    key="jira_sync_btn",
+    disabled=(not jira_client or not jira_client.is_available)
+)
+
+if sync_btn:
+    with st.spinner("Fetching statuses from Jira..."):
+        synced_df = jira_client.sync_statuses(filtered_risk_df)
+
+    # Show risks that have a linked Jira issue
+    linked_df = synced_df[synced_df["Jira_Key"] != ""]
+
+    if not linked_df.empty:
+        st.markdown(f"**{len(linked_df)} risk(s) linked to Jira issues:**")
+
+        display_cols = [
+            "Risk_ID", "Risk_Name", "Risk_Level",
+            "Status", "Jira_Key", "Jira_Status"
+        ]
+        available = [c for c in display_cols if c in linked_df.columns]
+
+        st.dataframe(
+            linked_df[available],
+            width="stretch",
+            column_config={
+                "Jira_Key": st.column_config.LinkColumn(
+                    "Jira Issue",
+                    display_text="Open in Jira"
+                ) if "Jira_URL" in linked_df.columns else "Jira Issue",
+                "Jira_Status": "Jira Status",
+            }
+        )
+
+        # Highlight risks where Jira says Done but GRC says Open
+        mismatch_df = linked_df[
+            (linked_df["Jira_Status"].str.lower().isin(["done", "closed", "resolved"]))
+            & (linked_df["Status"] == "Open")
+        ]
+
+        if not mismatch_df.empty:
+            st.warning(
+                f"⚠️ {len(mismatch_df)} risk(s) are marked **Done in Jira** "
+                f"but still **Open in GRC**. "
+                f"Update your risk register CSV to close these."
+            )
+            st.dataframe(
+                mismatch_df[["Risk_ID", "Risk_Name", "Status", "Jira_Key", "Jira_Status"]],
+                width="stretch"
+            )
+
+        log_action(
+            action_type="jira_sync",
+            description=f"Synced Jira statuses — {len(linked_df)} linked risk(s)",
+            metadata=f"linked={len(linked_df)}"
+        )
+
+    else:
+        st.info(
+            "No linked Jira issues found. Push some risks to Jira first, "
+            "then sync to see their status here."
+        )
 
 
 # ==========================================================
