@@ -11,7 +11,7 @@ Architecture:
     - Connection string stored in st.secrets (never in code)
     - Auto-detects: uses PostgreSQL if configured, SQLite fallback
     - SSL required for all connections (Neon enforces this)
-    - Connection pooling via psycopg2
+    - Connection pooling via psycopg
     - All tables created on first connection (idempotent)
 
 Tables:
@@ -75,7 +75,7 @@ def get_connection():
     Establish a PostgreSQL connection.
 
     Returns:
-        psycopg2 connection object, or None if PostgreSQL
+        psycopg connection object, or None if PostgreSQL
         is not configured or unavailable.
     """
 
@@ -85,15 +85,15 @@ def get_connection():
         return None
 
     try:
-        import psycopg2
+        import psycopg
 
-        conn = psycopg2.connect(conn_str)
+        conn = psycopg.connect(conn_str)
         return conn
 
     except ImportError:
         logger.warning(
-            "psycopg2 not installed. "
-            "Run: pip install psycopg2-binary"
+            "psycopg not installed. "
+            "Run: pip install psycopg[binary]"
         )
         return None
 
