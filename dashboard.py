@@ -7,6 +7,7 @@ Main application file — handles layout, UI components, and
 orchestration. All business logic lives in the utils/ package.
 
 Release Notes:
+    v3.2.0 - FastAPI REST API endpoints
     v3.0.0 - PostgreSQL backend, persistent cloud storage
     v2.5.0 - Streamlit Cloud deployment, password gate, cloud-ready config
     v2.4.0 - Config management, multi-org DB, email providers, auth, error handling
@@ -107,7 +108,7 @@ from utils import (
 # CONFIGURATION
 # ==========================================================
 
-APP_VERSION = "3.0.0"
+APP_VERSION = "3.2.0"
 
 # Set version in PDF module
 set_version(APP_VERSION)
