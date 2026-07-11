@@ -102,6 +102,9 @@ from .theme import (
 
 from .cloud_auth import check_password
 
+from .db_manager import db as database_manager
+from .db_postgres import is_postgres_available
+
 from .jira_integration import (
     JiraClient,
     JiraConfig,

@@ -7,6 +7,7 @@ Main application file — handles layout, UI components, and
 orchestration. All business logic lives in the utils/ package.
 
 Release Notes:
+    v3.0.0 - PostgreSQL backend, persistent cloud storage
     v2.5.0 - Streamlit Cloud deployment, password gate, cloud-ready config
     v2.4.0 - Config management, multi-org DB, email providers, auth, error handling
     v2.3.0 - Jira integration, init_database ordering fix
@@ -106,7 +107,7 @@ from utils import (
 # CONFIGURATION
 # ==========================================================
 
-APP_VERSION = "2.5.0"
+APP_VERSION = "3.0.0"
 
 # Set version in PDF module
 set_version(APP_VERSION)
@@ -304,12 +305,12 @@ if filtered_risk_df.empty:
 # Must run before any database reads (alerts, delta, snapshots)
 # ==========================================================
 
-init_database()
-init_audit_table()
+from utils import database_manager
+database_manager.init()
 
 # Log dashboard load (once per session)
 if "audit_load_logged" not in st.session_state:
-    log_action(
+    database_manager.log_action(
         action_type="dashboard_load",
         description="Dashboard loaded and initialised"
     )
@@ -470,7 +471,7 @@ controls reduce the score by 50%.
 scored_df = calculate_risk_scores(filtered_risk_df)
 
 # --- Capture daily snapshot ---
-capture_snapshot(
+database_manager.capture_snapshot(
     risk_df=filtered_risk_df,
     compliance_score=compliance_score,
     scored_df=scored_df
