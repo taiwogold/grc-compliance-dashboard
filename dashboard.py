@@ -1,12 +1,14 @@
 """
 GRC Compliance Dashboard
-Version: 2.2.0
+Version: 2.4.0
 Author: Taiwo Durodola-Tunde
 
 Main application file — handles layout, UI components, and
 orchestration. All business logic lives in the utils/ package.
 
 Release Notes:
+    v2.4.0 - Config management, multi-org DB, email providers, auth, error handling
+    v2.3.0 - Jira integration, init_database ordering fix
     v2.2.0 - Audit, History & Intelligence
     v2.1.1 - Modular refactor (no feature changes)
     v2.1.0 - Outlook Integration & Automated Reminder Dispatch
@@ -30,6 +32,8 @@ from datetime import datetime
 
 import pandas as pd
 import streamlit as st
+
+from utils.auth import require_auth, get_current_user, show_logout_button
 
 # Import all utilities from the modular package
 from utils import (
@@ -100,7 +104,7 @@ from utils import (
 # CONFIGURATION
 # ==========================================================
 
-APP_VERSION = "2.3.0"
+APP_VERSION = "2.4.0"
 
 # Set version in PDF module
 set_version(APP_VERSION)
@@ -109,6 +113,21 @@ st.set_page_config(
     page_title="GRC Compliance Dashboard",
     layout="wide"
 )
+
+# ==========================================================
+# AUTHENTICATION — must run before any content is rendered
+# ==========================================================
+
+require_auth()
+
+# --- Sidebar: User info & logout ---
+current_user = get_current_user()
+st.sidebar.markdown(
+    f"👤 **{current_user['name']}** "
+    f"({current_user['role'].title()})"
+)
+show_logout_button()
+st.sidebar.divider()
 
 # --- Theme Selection ---
 st.sidebar.header("🎨 Theme")
@@ -140,12 +159,70 @@ st.caption(
 # LOAD DATA
 # ==========================================================
 
+import logging
+_logger = logging.getLogger(__name__)
+
 try:
     risk_df = load_risk_register()
-    controls_df = load_controls()
+except FileNotFoundError:
+    st.error(
+        "Risk register file not found at `data/risk_register.csv`. "
+        "Please upload a file using the sidebar uploader below, "
+        "or ensure the data folder contains the required files."
+    )
+    st.info("👉 Use the **Data Upload** section in the sidebar to load a CSV.")
+    risk_df = None
+except pd.errors.EmptyDataError:
+    st.error(
+        "The risk register CSV is empty. "
+        "Please check the file and try again."
+    )
+    risk_df = None
+except pd.errors.ParserError as e:
+    st.error(
+        f"Could not parse risk register CSV — the file may be corrupted: {e}"
+    )
+    risk_df = None
 except Exception as e:
-    st.error(f"Unable to load source files: {e}")
-    st.stop()
+    st.error(f"Unexpected error loading risk register: {e}")
+    _logger.exception("Failed to load risk register")
+    risk_df = None
+
+try:
+    controls_df = load_controls()
+except FileNotFoundError:
+    st.warning(
+        "Controls file not found at `data/controls.csv`. "
+        "Compliance score and ISO coverage charts will be unavailable."
+    )
+    controls_df = None
+except pd.errors.EmptyDataError:
+    st.warning("Controls CSV is empty — compliance score will show 0%.")
+    controls_df = None
+except Exception as e:
+    st.warning(f"Could not load controls data: {e}")
+    _logger.exception("Failed to load controls")
+    controls_df = None
+
+# Stop if the core risk register failed and no upload is present
+if risk_df is None:
+
+
+# Stop if the core risk register failed and no upload is present
+if risk_df is None:
+    st.sidebar.header("Data Upload")
+    uploaded_file = st.sidebar.file_uploader(
+        "Upload Risk Register CSV", type=["csv"]
+    )
+    if uploaded_file:
+        try:
+            risk_df = pd.read_csv(uploaded_file)
+            st.success(f"Loaded {len(risk_df)} rows from uploaded file.")
+        except Exception as e:
+            st.error(f"Could not read uploaded file: {e}")
+            st.stop()
+    else:
+        st.stop()
 
 
 # ==========================================================
@@ -159,12 +236,24 @@ uploaded_file = st.sidebar.file_uploader(
 )
 
 if uploaded_file:
-    risk_df = pd.read_csv(uploaded_file)
-    log_action(
-        action_type="data_upload",
-        description=f"Risk register uploaded: {uploaded_file.name}",
-        metadata=f"rows={len(risk_df)}"
-    )
+    if uploaded_file.size > 10 * 1024 * 1024:
+        st.sidebar.error("File too large — maximum size is 10MB.")
+    else:
+        try:
+            risk_df = pd.read_csv(uploaded_file)
+            if risk_df.empty:
+                st.sidebar.error("Uploaded file is empty.")
+            else:
+                st.sidebar.success(f"Loaded {len(risk_df)} rows.")
+                log_action(
+                    action_type="data_upload",
+                    description=f"Risk register uploaded: {uploaded_file.name}",
+                    metadata=f"rows={len(risk_df)}"
+                )
+        except pd.errors.ParserError:
+            st.sidebar.error("Could not parse CSV — check the file format.")
+        except Exception as e:
+            st.sidebar.error(f"Upload failed: {e}")
 
 if st.sidebar.button("🔄 Refresh Dashboard"):
     st.cache_data.clear()

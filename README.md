@@ -8,7 +8,7 @@ Designed for Cyber Security Governance & Assurance teams to provide executive-le
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.59-red?logo=streamlit&logoColor=white)
 ![Plotly](https://img.shields.io/badge/Plotly-6.8-purple?logo=plotly&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Version](https://img.shields.io/badge/Version-2.3.0-orange)
+![Version](https://img.shields.io/badge/Version-2.4.0-orange)
 
 ---
 
@@ -181,6 +181,46 @@ The application follows a **modular architecture** — `dashboard.py` is a thin 
 | **Input Validation** | Email format checks, injection prevention |
 | **Confirmation Required** | Checkbox + button before any dispatch |
 
+### Configuration Management (v2.4.0)
+
+| Feature | Description |
+|---------|-------------|
+| **Centralised Config** | Single `utils/config.py` — no hardcoded paths anywhere |
+| **.env File Support** | Local development config via `.env` file |
+| **Environment Variables** | All paths, limits, and provider settings overridable |
+| **Auto Directory Creation** | `data/` and `logs/` created automatically on startup |
+
+### Email Provider Abstraction (v2.4.0)
+
+| Feature | Description |
+|---------|-------------|
+| **Pluggable Providers** | Switch between Outlook, SMTP, SendGrid, or Mock |
+| **Outlook Provider** | Existing COM behaviour preserved (Windows, no credentials stored) |
+| **SMTP Provider** | Works on any OS — Office 365, Gmail, corporate relay |
+| **SendGrid Provider** | Cloud-native HTTP API — no desktop client required |
+| **Mock Provider** | In-memory capture for testing — no real emails sent |
+| **Provider Factory** | Set `GRC_EMAIL_PROVIDER` in `.env` to switch providers |
+
+### Authentication (v2.4.0)
+
+| Feature | Description |
+|---------|-------------|
+| **Optional Login Screen** | Enabled via `GRC_AUTH_ENABLED=1` in `.env` |
+| **bcrypt Password Hashing** | Passwords never stored in plain text |
+| **Role-Based Access** | Admin and Viewer roles |
+| **Session Cookies** | 1-day session cookie with configurable secret key |
+| **Sidebar User Badge** | Shows logged-in user name and role |
+| **Graceful Bypass** | Auth disabled by default — zero change for existing users |
+
+### Multi-Organisation Database (v2.4.0)
+
+| Feature | Description |
+|---------|-------------|
+| **Organizations Table** | Named organisations with auto-created default org |
+| **Row-Level Isolation** | All queries filtered by `organization_id` |
+| **Auto Migration** | Existing databases upgraded automatically on startup |
+| **Connection Pooling** | Context manager prevents connection leaks |
+
 ### Jira Integration (v2.3.0)
 
 | Feature | Description |
@@ -272,7 +312,8 @@ streamlit run dashboard.py
 
 | Version | Release | Features |
 |---------|---------|----------|
-| **v2.3.0** | Current | Jira integration — push risks as issues, sync statuses, mismatch detection, audit logging |
+| **v2.4.0** | Current | Config management, multi-org DB schema, pluggable email providers (Outlook/SMTP/SendGrid), authentication, improved error handling |
+| **v2.3.0** | ✅ | Jira integration — push risks as issues, sync statuses, mismatch detection |
 | **v2.2.0** | ✅ | Risk scoring, SQLite history, audit trail, trend alerts, dark mode |
 | **v2.1.1** | ✅ | Modular refactor — extracted utils package |
 | **v2.1.0** | ✅ | Outlook integration, automated reminder dispatch |

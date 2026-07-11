@@ -1,13 +1,21 @@
 """
 GRC Compliance Dashboard - Utility Modules
-Version: 2.3.0
+Version: 2.4.0
 
 Package Structure:
+    config.py          - Centralised environment-based configuration
+    auth.py            - Authentication & session management
     data_loader.py     - CSV loading, validation, caching
     metrics.py         - Compliance scoring, escalation, summaries
     charts.py          - Plotly chart generation
     pdf_generator.py   - PDF report generation (legacy + enhanced)
-    email_dispatcher.py - Secure Outlook COM email dispatch
+    email_dispatcher.py - Multi-provider email dispatch
+    risk_scoring.py    - Quantitative risk scoring engine
+    database.py        - SQLite history, snapshots, multi-org schema
+    audit_trail.py     - Action logging for governance evidence
+    alerts.py          - Threshold detection & notifications
+    theme.py           - Light/dark mode theming
+    jira_integration.py - Jira REST API risk-to-issue sync
 """
 
 from .data_loader import (
@@ -98,4 +106,27 @@ from .jira_integration import (
     JiraIssueResult,
     build_jira_client_from_config,
     summarise_push_results,
+)
+
+from .config import config, AppConfig
+
+from .auth import (
+    require_auth,
+    get_current_user,
+    show_logout_button,
+    create_credentials_file,
+    is_admin,
+)
+
+from .database import (
+    init_database,
+    capture_snapshot,
+    get_snapshots,
+    get_snapshot_detail,
+    get_risk_history,
+    get_latest_delta,
+    has_snapshot_today,
+    get_snapshot_count,
+    get_or_create_org,
+    list_organisations,
 )
