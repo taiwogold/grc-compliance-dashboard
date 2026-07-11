@@ -271,7 +271,7 @@ def create_management_trend_chart(trend_df, target=80, theme_name="light"):
             y=trend_df["Score"],
             mode="lines+markers",
             name="Compliance Score",
-            line=dict(color=theme["trend_line_color"], width=3),
+            line=dict(color=theme["trend_line"], width=3),
             marker=dict(size=8)
         )
     )
