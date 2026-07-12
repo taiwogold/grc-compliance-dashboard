@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GovernIQ — Intelligent Governance. Clear Risk.</title>
+    <meta name="description" content="Enterprise GRC platform that deploys in 2 minutes. Risk scoring, compliance tracking, automated escalation.">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔶</text></svg>">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+</head>
+<body style="font-family:'Inter',sans-serif;color:#1C1917;background:#F5F5F4;margin:0;line-height:1.6;">
+
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    .amber { color: #F59E0B; }
+
+    /* NAV */
+    nav { position:fixed; top:0; width:100%; padding:16px 40px; display:flex; justify-content:space-between; align-items:center; background:rgba(245,245,244,0.92); backdrop-filter:blur(12px); z-index:100; border-bottom:1px solid rgba(0,0,0,0.05); }
+    .logo { font-size:1.5rem; font-weight:800; }
+    .btn-nav { background:#F59E0B; color:#1C1917; padding:10px 24px; border-radius:8px; text-decoration:none; font-weight:600; font-size:0.9rem; transition:all 0.2s; }
+    .btn-nav:hover { background:#D97706; transform:translateY(-1px); }
+
+    /* HERO */
+    .hero { padding:160px 40px 100px; text-align:center; max-width:800px; margin:0 auto; }
+    .badge { display:inline-block; background:#FEF3C7; color:#92400E; padding:6px 16px; border-radius:20px; font-size:0.8rem; font-weight:600; margin-bottom:24px; }
+    .hero h1 { font-size:4rem; font-weight:900; letter-spacing:-2px; margin-bottom:8px; }
+    .tagline { font-size:1.3rem; color:#78716C; margin-bottom:24px; }
+    .hero-desc { font-size:1.1rem; color:#57534E; max-width:600px; margin:0 auto 40px; }
+    .hero-buttons { display:flex; gap:16px; justify-content:center; flex-wrap:wrap; }
+    .btn-primary { background:#F59E0B; color:#1C1917; padding:14px 32px; border-radius:10px; text-decoration:none; font-weight:700; font-size:1rem; border:none; cursor:pointer; transition:all 0.2s; }
+    .btn-primary:hover { background:#D97706; transform:translateY(-2px); box-shadow:0 8px 24px rgba(245,158,11,0.3); }
+    .btn-secondary { background:transparent; color:#1C1917; padding:14px 32px; border-radius:10px; text-decoration:none; font-weight:600; font-size:1rem; border:2px solid #D6D3D1; transition:all 0.2s; }
+    .btn-secondary:hover { border-color:#F59E0B; color:#D97706; }
+
+    /* FEATURES */
+    .features { padding:100px 40px; max-width:1100px; margin:0 auto; text-align:center; }
+    .features h2 { font-size:2.2rem; font-weight:800; margin-bottom:12px; }
+    .section-desc { color:#78716C; font-size:1.1rem; margin-bottom:60px; }
+    .feature-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:24px; text-align:left; }
+    .feature-card { background:#fff; border:1px solid rgba(0,0,0,0.06); border-radius:16px; padding:32px; transition:all 0.2s; }
+    .feature-card:hover { transform:translateY(-4px); box-shadow:0 12px 40px rgba(0,0,0,0.06); border-color:rgba(245,158,11,0.3); }
+    .feature-icon { font-size:2rem; margin-bottom:16px; }
+    .feature-card h3 { font-size:1.1rem; font-weight:700; margin-bottom:8px; }
+    .feature-card p { color:#57534E; font-size:0.95rem; }
+
+    /* COMPARISON */
+    .comparison { padding:100px 40px; max-width:900px; margin:0 auto; text-align:center; }
+    .comparison h2 { font-size:2.2rem; font-weight:800; margin-bottom:40px; }
+    .compare-table { text-align:left; }
+    .compare-row { display:grid; grid-template-columns:2fr 1.2fr 1.2fr 1.2fr; padding:16px 20px; border-bottom:1px solid #E7E5E4; align-items:center; }
+    .compare-row.header { font-weight:700; background:#FFFBEB; border-radius:10px 10px 0 0; }
+    .highlight { color:#D97706; font-weight:700; }
+
+    /* CTA */
+    .cta { padding:100px 40px; text-align:center; background:#1C1917; color:#FAFAF9; }
+    .cta h2 { font-size:2.2rem; font-weight:800; margin-bottom:12px; }
+    .cta p { color:#A8A29E; margin-bottom:32px; }
+    .email-form { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; max-width:500px; margin:0 auto; }
+    .email-form input[type="email"] { padding:14px 20px; border-radius:10px; border:1px solid #44403C; background:#292524; color:#FAFAF9; font-size:1rem; flex:1; min-width:240px; }
+    .email-form input:focus { outline:none; border-color:#F59E0B; }
+    .form-note { margin-top:16px; font-size:0.85rem; color:#78716C; }
+
+    /* FOOTER */
+    footer { padding:60px 40px; text-align:center; }
+    .footer-brand { font-size:1.5rem; font-weight:800; margin-bottom:8px; }
+    footer p { color:#78716C; font-size:0.9rem; margin-bottom:4px; }
+    .footer-credit { margin-top:20px; font-size:0.8rem; color:#A8A29E; }
+
+    /* MOBILE */
+    @media (max-width: 768px) {
+        .hero h1 { font-size:2.8rem; }
+        .compare-row { grid-template-columns:1fr; gap:8px; padding:12px; }
+        .compare-row.header { display:none; }
+        nav { padding:12px 20px; }
+    }
+</style>
+    <!-- NAV -->
+    <nav>
+        <div class="logo"><span class="amber">Govern</span>IQ</div>
+        <a href="#early-access" class="btn-nav">Get Early Access</a>
+    </nav>
+
+    <!-- HERO -->
+    <section class="hero">
+        <div class="hero-content">
+            <div class="badge">Now in Beta</div>
+            <h1><span class="amber">Govern</span>IQ</h1>
+            <p class="tagline">Intelligent Governance. Clear Risk.</p>
+            <p class="hero-desc">
+                Enterprise-grade GRC platform that deploys in 2 minutes.
+                Quantitative risk scoring, automated escalation, Outlook
+                integration, and professional reporting — at zero cost.
+            </p>
+            <div class="hero-buttons">
+                <a href="#early-access" class="btn-primary">Join Early Access</a>
+                <a href="https://grc-com.streamlit.app" target="_blank" class="btn-secondary">Live Demo →</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- FEATURES -->
+    <section class="features" id="features">
+        <h2>Everything you need for governance</h2>
+        <p class="section-desc">Built by a GRC professional. Not a generic tool adapted for compliance.</p>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="feature-icon">🎯</div>
+                <h3>Risk Scoring Engine</h3>
+                <p>Quantitative scoring with weighted formula. Overdue penalties and control effectiveness built in.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">⚡</div>
+                <h3>Automated Escalation</h3>
+                <p>4-tier escalation from Owner → Manager → Director → Executive. Triggered by due dates, not meetings.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📧</div>
+                <h3>One-Click Reminders</h3>
+                <p>Send remediation reminders via Outlook. Bulk dispatch to all overdue owners in seconds.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📊</div>
+                <h3>Executive Reporting</h3>
+                <p>5-page PDF management reports with sign-off. Month-over-month trends and gap analysis.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🔗</div>
+                <h3>Jira Integration</h3>
+                <p>Push risks to Jira. Sync statuses back. Bridge the gap between governance and engineering.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📋</div>
+                <h3>Full Audit Trail</h3>
+                <p>Every action logged. Exportable evidence packs for auditors. Governance committees love it.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- COMPARISON -->
+    <section class="comparison">
+        <h2>How we compare</h2>
+        <div class="compare-table">
+            <div class="compare-row header">
+                <div></div>
+                <div>GovernIQ</div>
+                <div>ServiceNow GRC</div>
+                <div>Archer</div>
+            </div>
+            <div class="compare-row">
+                <div>Deployment Time</div>
+                <div class="highlight">2 minutes</div>
+                <div>3-6 months</div>
+                <div>6-12 months</div>
+            </div>
+            <div class="compare-row">
+                <div>Annual Cost</div>
+                <div class="highlight">Free / £49/mo</div>
+                <div>£80,000+</div>
+                <div>£150,000+</div>
+            </div>
+            <div class="compare-row">
+                <div>Risk Scoring</div>
+                <div class="highlight">Quantitative</div>
+                <div>Qualitative</div>
+                <div>Qualitative</div>
+            </div>
+            <div class="compare-row">
+                <div>Jira Integration</div>
+                <div class="highlight">Built-in</div>
+                <div>Add-on (£)</div>
+                <div>Custom dev</div>
+            </div>
+            <div class="compare-row">
+                <div>Email Automation</div>
+                <div class="highlight">1-click</div>
+                <div>Complex workflow</div>
+                <div>Manual</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- EARLY ACCESS -->
+    <section class="cta" id="early-access">
+        <h2>Get Early Access</h2>
+        <p>Be first to know when GovernIQ launches publicly. No spam — just one email when we're ready.</p>
+        <form class="email-form" action="https://formsubmit.co/olakunledurodola@yahoo.com" method="POST">
+            <input type="hidden" name="_subject" value="GovernIQ Early Access Signup">
+            <input type="hidden" name="_captcha" value="false">
+            <input type="email" name="email" placeholder="your@email.com" required>
+            <button type="submit" class="btn-primary">Join the List</button>
+        </form>
+        <p class="form-note">Free forever for early adopters.</p>
+    </section>
+
+    <!-- FOOTER -->
+    <footer>
+        <div class="footer-brand">
+            <span class="amber">Govern</span>IQ
+        </div>
+        <p>Intelligent Governance. Clear Risk.</p>
+        <p class="footer-credit">Built by Taiwo Durodola-Tunde · Cyber Security Governance & Assurance</p>
+    </footer>
+</body>
+</html>
