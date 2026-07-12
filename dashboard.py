@@ -445,8 +445,8 @@ with tab4:
     h1, h2, h3 = st.columns(3)
     h1.metric("Total Snapshots", snapshot_count)
     if not snapshots_df.empty:
-        h2.metric("First", snapshots_df["snapshot_date"].iloc[-1])
-        h3.metric("Latest", snapshots_df["snapshot_date"].iloc[0])
+        h2.metric("First", str(snapshots_df["snapshot_date"].iloc[-1]))
+        h3.metric("Latest", str(snapshots_df["snapshot_date"].iloc[0]))
 
     # Delta
     if delta:
