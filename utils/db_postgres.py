@@ -39,10 +39,14 @@ Usage:
 """
 
 import logging
+import warnings
 from datetime import datetime, date
 from typing import Optional
 
 import pandas as pd
+
+# Suppress pandas SQLAlchemy warning — psycopg3 works fine with read_sql_query
+warnings.filterwarnings("ignore", message=".*pandas only supports SQLAlchemy.*")
 import streamlit as st
 
 logger = logging.getLogger(__name__)
