@@ -206,7 +206,7 @@ k4.metric("High Severity", metrics["high_risks"])
 k5.metric("Health", rating)
 
 # Alert banner
-delta = get_latest_delta()
+delta = database_manager.get_latest_delta()
 alerts = evaluate_alerts(
     compliance_score=compliance_score,
     metrics=metrics,
