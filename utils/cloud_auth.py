@@ -62,9 +62,14 @@ def check_password() -> bool:
     st.markdown(
         """
         <div style="text-align: center; padding: 60px 20px;">
-            <h1>🛡️ GRC Compliance Dashboard</h1>
-            <p style="color: #666; font-size: 1.1em;">
-                Enter the dashboard password to continue
+            <h1 style="font-size: 2.8rem; font-weight: 800; margin-bottom: 4px;">
+                <span style="color: #F59E0B;">Govern</span>IQ
+            </h1>
+            <p style="color: #78716C; font-size: 1.05em; margin-top: 0;">
+                Intelligent Governance. Clear Risk.
+            </p>
+            <p style="color: #A8A29E; font-size: 0.9em; margin-top: 20px;">
+                Enter your password to access the dashboard
             </p>
         </div>
         """,
@@ -82,7 +87,7 @@ def check_password() -> bool:
             placeholder="Enter dashboard password"
         )
 
-        if st.button("🔓 Access Dashboard", use_container_width=True):
+        if st.button("🔶 Access Dashboard", use_container_width=True):
             if password_input == correct_password:
                 st.session_state.password_correct = True
                 st.rerun()
@@ -93,8 +98,9 @@ def check_password() -> bool:
     # Footer
     st.markdown(
         """
-        <div style="text-align: center; padding: 40px 20px; color: #999;">
+        <div style="text-align: center; padding: 40px 20px; color: #A8A29E;">
             <small>
+                <span style="color: #F59E0B; font-weight: 600;">Govern</span><span style="font-weight: 600;">IQ</span><br>
                 Cyber Security Governance & Assurance<br>
                 Contact your administrator for access
             </small>
