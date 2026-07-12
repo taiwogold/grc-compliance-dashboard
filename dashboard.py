@@ -439,8 +439,8 @@ with tab3:
 with tab4:
     st.subheader("📸 Risk History & Snapshots")
 
-    snapshot_count = get_snapshot_count()
-    snapshots_df = get_snapshots()
+    snapshot_count = database_manager.get_snapshot_count()
+    snapshots_df = database_manager.get_snapshots()
 
     h1, h2, h3 = st.columns(3)
     h1.metric("Total Snapshots", snapshot_count)
@@ -480,7 +480,7 @@ with tab4:
     all_ids = sorted(filtered_df["Risk_ID"].unique())
     sel_id = st.selectbox("Select Risk ID", all_ids, key="t4_risk_select")
     if sel_id:
-        hist_df = get_risk_history(sel_id)
+        hist_df = database_manager.get_risk_history(sel_id)
         if not hist_df.empty:
             st.dataframe(hist_df, width="stretch")
             if "residual_score" in hist_df.columns and hist_df["residual_score"].notna().any():
@@ -692,12 +692,12 @@ with tab6:
 
     # Audit Trail
     st.markdown("#### 📋 Audit Trail")
-    audit_count = get_audit_count()
-    audit_summary = get_audit_summary()
+    audit_count = database_manager.get_audit_count()
+    audit_summary = database_manager.get_audit_summary()
 
     a1, a2, a3 = st.columns(3)
     a1.metric("Total Actions", audit_count)
-    a2.metric("Today", len(get_today_actions()))
+    a2.metric("Today", len(database_manager.get_audit_trail(limit=1000)))
     a3.metric("Types", len(audit_summary))
 
 
@@ -708,7 +708,7 @@ with tab6:
         key="t6_audit_filter")
 
     sel_type = None if filter_type == "All" else filter_type
-    audit_df = get_audit_trail(action_type=sel_type, limit=50)
+    audit_df = database_manager.get_audit_trail(action_type=sel_type, limit=50)
 
     if not audit_df.empty:
         st.dataframe(
@@ -720,7 +720,7 @@ with tab6:
 
     st.download_button(
         "📥 Export Audit Trail (CSV)",
-        export_audit_trail(),
+        database_manager.export_audit_trail(),
         f"audit_trail_{datetime.now().strftime('%Y%m%d')}.csv",
         "text/csv", key="t6_audit_csv")
 
