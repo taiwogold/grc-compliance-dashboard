@@ -1,140 +1,132 @@
 """
-Theme Module - Full Dark/Light Mode Toggle
-Version: 3.3.1
+Theme Module - GovernIQ Brand System
+Version: 3.4.0
 Author: Taiwo Durodola-Tunde
 
-Provides a fully working dark/light mode toggle that controls
-EVERY visual element in the dashboard — backgrounds, text,
-cards, charts, tables, sidebar, tabs, buttons, borders.
+GovernIQ brand identity with full dark/light mode support.
+Professional warm amber/charcoal palette that looks like
+a premium SaaS product.
 
-How it works:
-    Streamlit's config.toml sets the base theme, but we override
-    it completely via comprehensive CSS injection that covers all
-    Streamlit internal class names. Charts use transparent
-    backgrounds so they inherit the page colour automatically.
-
-Usage:
-    from utils.theme import get_theme, get_custom_css, apply_chart_theme
+Brand:
+    Name: GovernIQ
+    Tagline: Intelligent Governance. Clear Risk.
+    Primary: Amber #F59E0B
+    Dark: Charcoal #1C1917
+    Light: Warm Stone #F5F5F4
 """
 
 import streamlit as st
 
 
 # ==========================================================
-# COLOUR PALETTES — Saturated for both backgrounds
+# GOVERNIQ COLOUR PALETTES
 # ==========================================================
 
 RISK_LEVEL_COLOURS = {
-    "High": "#ef5350",
-    "Medium": "#ffca28",
-    "Low": "#66bb6a",
+    "High": "#ef4444",
+    "Medium": "#F59E0B",
+    "Low": "#10b981",
 }
 
 ESCALATION_COLOURS = {
-    "Level 1 - Owner Reminder": "#ffca28",
-    "Level 2 - Manager Escalation": "#ff9800",
-    "Level 3 - Director Escalation": "#ef5350",
-    "Level 4 - Executive Escalation": "#ab47bc",
+    "Level 1 - Owner Reminder": "#FCD34D",
+    "Level 2 - Manager Escalation": "#F59E0B",
+    "Level 3 - Director Escalation": "#ef4444",
+    "Level 4 - Executive Escalation": "#92400E",
 }
 
 SCORE_BAND_COLOURS = {
-    "Critical": "#ab47bc",
-    "High": "#ef5350",
-    "Medium": "#ffca28",
-    "Low": "#66bb6a",
+    "Critical": "#92400E",
+    "High": "#ef4444",
+    "Medium": "#F59E0B",
+    "Low": "#10b981",
 }
 
 
 # ==========================================================
-# THEME DEFINITIONS
+# GOVERNIQ THEME DEFINITIONS
 # ==========================================================
 
 THEMES = {
     "light": {
-        "name": "Light",
+        "name": "GovernIQ Light",
         # Page
-        "bg_primary": "#ffffff",
-        "bg_secondary": "#f0f2f6",
+        "bg_primary": "#F5F5F4",
+        "bg_secondary": "#FFFBEB",
         "bg_card": "#ffffff",
-        "bg_sidebar": "#f8f9fc",
+        "bg_sidebar": "#ffffff",
         # Text
-        "text_primary": "#1e1e1e",
-        "text_secondary": "#555555",
-        "text_muted": "#888888",
-        # Accents
-        "accent": "#1a237e",
-        "accent_light": "#e8eaf6",
-        "border": "rgba(0, 0, 0, 0.08)",
-        "shadow": "rgba(0, 0, 0, 0.04)",
+        "text_primary": "#1C1917",
+        "text_secondary": "#57534E",
+        "text_muted": "#78716C",
+        # Brand
+        "accent": "#F59E0B",
+        "accent_hover": "#D97706",
+        "accent_light": "#FEF3C7",
+        "accent_dark": "#92400E",
+        "border": "rgba(28, 25, 23, 0.08)",
+        "shadow": "rgba(28, 25, 23, 0.06)",
         # Charts
         "plotly_template": "plotly_white",
         "chart_bg": "rgba(0,0,0,0)",
-        "chart_text": "#1e1e1e",
-        "chart_grid": "#e8e8e8",
-        "trend_line": "#1a237e",
+        "chart_text": "#1C1917",
+        "chart_grid": "#E7E5E4",
+        "trend_line": "#D97706",
         # Components
         "tab_active_bg": "#ffffff",
-        "tab_hover_bg": "#f0f2f6",
+        "tab_hover_bg": "#FEF3C7",
         "input_bg": "#ffffff",
-        "input_border": "#d1d5db",
-        "button_bg": "#1a237e",
-        "button_text": "#ffffff",
-        "success": "#10b981",
-        "warning": "#f59e0b",
-        "error": "#ef4444",
+        "input_border": "#D6D3D1",
+        "metric_bg": "#ffffff",
+        "metric_border": "rgba(245, 158, 11, 0.15)",
     },
     "dark": {
-        "name": "Dark",
+        "name": "GovernIQ Dark",
         # Page
-        "bg_primary": "#0e1117",
-        "bg_secondary": "#161b22",
-        "bg_card": "#1c2128",
-        "bg_sidebar": "#161b22",
+        "bg_primary": "#1C1917",
+        "bg_secondary": "#292524",
+        "bg_card": "#292524",
+        "bg_sidebar": "#1C1917",
         # Text
-        "text_primary": "#e6edf3",
-        "text_secondary": "#b1bac4",
-        "text_muted": "#768390",
-        # Accents
-        "accent": "#58a6ff",
-        "accent_light": "#1c3a5c",
+        "text_primary": "#FAFAF9",
+        "text_secondary": "#D6D3D1",
+        "text_muted": "#A8A29E",
+        # Brand
+        "accent": "#F59E0B",
+        "accent_hover": "#FCD34D",
+        "accent_light": "#451A03",
+        "accent_dark": "#FCD34D",
         "border": "rgba(255, 255, 255, 0.08)",
-        "shadow": "rgba(0, 0, 0, 0.3)",
+        "shadow": "rgba(0, 0, 0, 0.4)",
         # Charts
         "plotly_template": "plotly_dark",
         "chart_bg": "rgba(0,0,0,0)",
-        "chart_text": "#e6edf3",
-        "chart_grid": "#2d333b",
-        "trend_line": "#58a6ff",
+        "chart_text": "#FAFAF9",
+        "chart_grid": "#44403C",
+        "trend_line": "#FCD34D",
         # Components
-        "tab_active_bg": "#1c2128",
-        "tab_hover_bg": "#21262d",
-        "input_bg": "#1c2128",
-        "input_border": "#363b42",
-        "button_bg": "#58a6ff",
-        "button_text": "#0e1117",
-        "success": "#3fb950",
-        "warning": "#d29922",
-        "error": "#f85149",
+        "tab_active_bg": "#292524",
+        "tab_hover_bg": "#44403C",
+        "input_bg": "#292524",
+        "input_border": "#44403C",
+        "metric_bg": "#292524",
+        "metric_border": "rgba(245, 158, 11, 0.2)",
     },
 }
 
 
 def get_theme(theme_name: str = "light") -> dict:
-    """Return theme config dictionary."""
+    """Return GovernIQ theme configuration."""
     return THEMES.get(theme_name, THEMES["light"])
 
 
 def get_available_themes() -> list:
-    """List available theme names."""
+    """List available themes."""
     return list(THEMES.keys())
 
 
 def apply_chart_theme(fig, theme: dict):
-    """
-    Apply theme to a Plotly figure with transparent background.
-
-    Charts use transparent bg so they inherit page colour.
-    """
+    """Apply GovernIQ theme to Plotly charts."""
     fig.update_layout(
         template=theme["plotly_template"],
         paper_bgcolor=theme["chart_bg"],
@@ -149,18 +141,13 @@ def apply_chart_theme(fig, theme: dict):
 
 def get_custom_css(theme: dict) -> str:
     """
-    Generate COMPREHENSIVE CSS that overrides every Streamlit element.
-
-    This is a full theme override — not partial. Covers:
-    backgrounds, text, sidebar, tabs, inputs, buttons, metrics,
-    dataframes, alerts, expanders, and all component states.
+    Generate GovernIQ branded CSS for the entire dashboard.
+    Comprehensive override of all Streamlit elements.
     """
-
-    t = theme  # shorthand
-
+    t = theme
     return f"""
     <style>
-        /* ===== ROOT OVERRIDES ===== */
+        /* ===== GOVERNIQ ROOT ===== */
         .stApp {{
             background-color: {t['bg_primary']} !important;
             color: {t['text_primary']} !important;
@@ -169,22 +156,23 @@ def get_custom_css(theme: dict) -> str:
         /* ===== SIDEBAR ===== */
         section[data-testid="stSidebar"] {{
             background-color: {t['bg_sidebar']} !important;
+            border-right: 1px solid {t['border']} !important;
         }}
         section[data-testid="stSidebar"] * {{
             color: {t['text_primary']} !important;
         }}
-        section[data-testid="stSidebar"] .stMarkdown p {{
-            color: {t['text_primary']} !important;
-        }}
 
         /* ===== HEADERS ===== */
-        h1, h2, h3, h4, h5, h6,
-        .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {{
+        h1, h2, h3, h4, h5, h6 {{
             color: {t['text_primary']} !important;
         }}
+        h1 {{
+            font-weight: 800 !important;
+            letter-spacing: -0.5px !important;
+        }}
 
-        /* ===== TEXT ===== */
-        p, span, label, .stMarkdown, .stCaption,
+        /* ===== BODY TEXT ===== */
+        p, span, label, .stMarkdown,
         [data-testid="stMarkdownContainer"] p {{
             color: {t['text_primary']} !important;
         }}
@@ -192,91 +180,111 @@ def get_custom_css(theme: dict) -> str:
             color: {t['text_muted']} !important;
         }}
 
-        /* ===== METRIC CARDS ===== */
+        /* ===== METRIC CARDS (GovernIQ branded) ===== */
         [data-testid="stMetric"] {{
-            background-color: {t['bg_card']} !important;
-            border: 1px solid {t['border']} !important;
-            border-radius: 12px !important;
-            padding: 16px 20px !important;
-            box-shadow: 0 2px 8px {t['shadow']} !important;
+            background-color: {t['metric_bg']} !important;
+            border: 1px solid {t['metric_border']} !important;
+            border-radius: 14px !important;
+            padding: 18px 22px !important;
+            box-shadow: 0 2px 12px {t['shadow']} !important;
+            transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+        }}
+        [data-testid="stMetric"]:hover {{
+            transform: translateY(-2px) !important;
+            box-shadow: 0 6px 20px {t['shadow']} !important;
         }}
         [data-testid="stMetricValue"] {{
             color: {t['text_primary']} !important;
-            font-weight: 700 !important;
+            font-weight: 800 !important;
+            font-size: 1.8rem !important;
         }}
         [data-testid="stMetricLabel"] {{
             color: {t['text_secondary']} !important;
-        }}
-        [data-testid="stMetricDelta"] {{
-            font-weight: 600 !important;
+            font-weight: 500 !important;
+            text-transform: uppercase !important;
+            font-size: 0.7rem !important;
+            letter-spacing: 0.5px !important;
         }}
 
-        /* ===== TABS ===== */
+        /* ===== TABS (GovernIQ amber accent) ===== */
         .stTabs [data-baseweb="tab-list"] {{
             background-color: {t['bg_secondary']} !important;
-            border-radius: 12px !important;
-            padding: 4px !important;
+            border-radius: 14px !important;
+            padding: 5px !important;
             gap: 4px !important;
+            border: 1px solid {t['border']} !important;
         }}
         .stTabs [data-baseweb="tab"] {{
             background-color: transparent !important;
-            color: {t['text_secondary']} !important;
-            border-radius: 8px !important;
-            padding: 10px 20px !important;
+            color: {t['text_muted']} !important;
+            border-radius: 10px !important;
+            padding: 10px 18px !important;
             font-weight: 500 !important;
+            transition: all 0.15s ease !important;
+        }}
+        .stTabs [data-baseweb="tab"]:hover {{
+            background-color: {t['tab_hover_bg']} !important;
+            color: {t['text_primary']} !important;
         }}
         .stTabs [aria-selected="true"] {{
             background-color: {t['tab_active_bg']} !important;
             color: {t['accent']} !important;
             font-weight: 700 !important;
-            box-shadow: 0 1px 4px {t['shadow']} !important;
+            box-shadow: 0 2px 8px {t['shadow']} !important;
         }}
         .stTabs [data-baseweb="tab-highlight"] {{
             background-color: {t['accent']} !important;
         }}
-        .stTabs [data-baseweb="tab-panel"] {{
-            padding-top: 1.5rem !important;
-        }}
 
         /* ===== DATAFRAMES ===== */
-        [data-testid="stDataFrame"],
-        .stDataFrame {{
+        [data-testid="stDataFrame"] {{
             border: 1px solid {t['border']} !important;
-            border-radius: 10px !important;
+            border-radius: 12px !important;
             overflow: hidden !important;
+            box-shadow: 0 1px 4px {t['shadow']} !important;
         }}
 
         /* ===== INPUTS ===== */
-        .stTextInput input, .stSelectbox select,
+        .stTextInput input, .stSelectbox [data-baseweb="select"],
         .stTextArea textarea, .stNumberInput input {{
             background-color: {t['input_bg']} !important;
-            border-color: {t['input_border']} !important;
+            border: 1px solid {t['input_border']} !important;
             color: {t['text_primary']} !important;
-            border-radius: 8px !important;
+            border-radius: 10px !important;
         }}
-        .stMultiSelect [data-baseweb="tag"] {{
-            background-color: {t['accent_light']} !important;
+        .stTextInput input:focus, .stTextArea textarea:focus {{
+            border-color: {t['accent']} !important;
+            box-shadow: 0 0 0 2px {t['accent_light']} !important;
         }}
 
-        /* ===== BUTTONS ===== */
+        /* ===== BUTTONS (GovernIQ amber) ===== */
         .stButton > button {{
-            border-radius: 8px !important;
+            border-radius: 10px !important;
             font-weight: 600 !important;
             border: 1px solid {t['border']} !important;
             transition: all 0.2s ease !important;
         }}
         .stButton > button:hover {{
+            border-color: {t['accent']} !important;
+            color: {t['accent']} !important;
             transform: translateY(-1px) !important;
             box-shadow: 0 4px 12px {t['shadow']} !important;
         }}
         .stDownloadButton > button {{
-            border-radius: 8px !important;
-            font-weight: 500 !important;
+            background-color: {t['accent']} !important;
+            color: #1C1917 !important;
+            border: none !important;
+            border-radius: 10px !important;
+            font-weight: 600 !important;
+        }}
+        .stDownloadButton > button:hover {{
+            background-color: {t['accent_hover']} !important;
+            transform: translateY(-1px) !important;
         }}
 
         /* ===== ALERTS ===== */
         .stAlert {{
-            border-radius: 10px !important;
+            border-radius: 12px !important;
             border-left-width: 4px !important;
         }}
 
@@ -284,42 +292,61 @@ def get_custom_css(theme: dict) -> str:
         .streamlit-expanderHeader {{
             color: {t['text_primary']} !important;
             font-weight: 600 !important;
-            background-color: {t['bg_secondary']} !important;
-            border-radius: 8px !important;
+            border-radius: 10px !important;
         }}
 
         /* ===== DIVIDERS ===== */
         hr {{
             border-color: {t['border']} !important;
-            opacity: 0.5 !important;
         }}
 
-        /* ===== CHECKBOX & TOGGLE ===== */
+        /* ===== TOGGLE ===== */
         .stCheckbox label span {{
             color: {t['text_primary']} !important;
         }}
 
         /* ===== FILE UPLOADER ===== */
         [data-testid="stFileUploader"] {{
-            border: 2px dashed {t['border']} !important;
-            border-radius: 10px !important;
+            border: 2px dashed {t['accent']} !important;
+            border-radius: 12px !important;
             padding: 1rem !important;
+            background-color: {t['accent_light']} !important;
         }}
 
-        /* ===== PLOTLY CHARTS ===== */
+        /* ===== PLOTLY TRANSPARENT ===== */
         .js-plotly-plot .plotly .main-svg {{
             background: transparent !important;
         }}
 
         /* ===== SELECTBOX DROPDOWN ===== */
-        [data-baseweb="select"] {{
-            background-color: {t['input_bg']} !important;
-        }}
         [data-baseweb="menu"] {{
             background-color: {t['bg_card']} !important;
+            border: 1px solid {t['border']} !important;
+            border-radius: 10px !important;
         }}
         [data-baseweb="menu"] li {{
             color: {t['text_primary']} !important;
+        }}
+        [data-baseweb="menu"] li:hover {{
+            background-color: {t['accent_light']} !important;
+        }}
+
+        /* ===== MULTISELECT TAGS ===== */
+        .stMultiSelect [data-baseweb="tag"] {{
+            background-color: {t['accent']} !important;
+            color: #1C1917 !important;
+            border-radius: 6px !important;
+        }}
+
+        /* ===== SUCCESS/WARNING/ERROR BADGES ===== */
+        .stSuccess {{
+            border-left-color: #10b981 !important;
+        }}
+        .stWarning {{
+            border-left-color: {t['accent']} !important;
+        }}
+        .stError {{
+            border-left-color: #ef4444 !important;
         }}
     </style>
     """

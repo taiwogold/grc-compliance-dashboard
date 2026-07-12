@@ -68,12 +68,12 @@ _logger = logging.getLogger(__name__)
 # PAGE CONFIG & AUTH
 # ==========================================================
 
-APP_VERSION = "3.3.0"
+APP_VERSION = "3.4.0"
 set_version(APP_VERSION)
 
 st.set_page_config(
-    page_title="GRC Compliance Dashboard",
-    page_icon="🛡️",
+    page_title="GovernIQ — Intelligent Governance",
+    page_icon="🔶",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -85,6 +85,16 @@ require_auth()
 
 # --- Sidebar: User & Theme ---
 current_user = get_current_user()
+st.sidebar.markdown("""
+<div style="text-align: center; padding: 10px 0 20px 0;">
+    <h2 style="margin: 0; font-size: 1.6rem;">
+        <span style="color: #F59E0B;">Govern</span>IQ
+    </h2>
+    <p style="margin: 0; font-size: 0.75rem; opacity: 0.6;">
+        Intelligent Governance. Clear Risk.
+    </p>
+</div>
+""", unsafe_allow_html=True)
 st.sidebar.markdown(f"👤 **{current_user['name']}** ({current_user['role'].title()})")
 show_logout_button()
 st.sidebar.divider()
@@ -175,7 +185,14 @@ database_manager.capture_snapshot(filtered_df, compliance_score, scored_df)
 # Title bar
 col_title, col_version = st.columns([4, 1])
 with col_title:
-    st.title("🛡️ GRC Compliance Dashboard")
+    st.markdown("""
+    <h1 style="margin-bottom: 0; font-size: 2.2rem;">
+        <span style="color: #F59E0B;">Govern</span><span>IQ</span>
+    </h1>
+    <p style="margin-top: -8px; font-size: 0.85rem; opacity: 0.7;">
+        Intelligent Governance. Clear Risk.
+    </p>
+    """, unsafe_allow_html=True)
 with col_version:
     st.caption(f"v{APP_VERSION}")
     st.caption(datetime.now().strftime("%d %b %Y %H:%M"))
@@ -721,4 +738,10 @@ with tab6:
 # ==========================================================
 
 st.divider()
-st.caption(f"GRC Compliance Dashboard | v{APP_VERSION} | {datetime.now().strftime('%Y')}")
+st.markdown(f"""
+<div style="text-align: center; padding: 10px 0; opacity: 0.6;">
+    <span style="color: #F59E0B; font-weight: 700;">Govern</span><span style="font-weight: 700;">IQ</span>
+    &nbsp;·&nbsp; v{APP_VERSION} &nbsp;·&nbsp; {datetime.now().strftime('%Y')}
+    &nbsp;·&nbsp; Intelligent Governance. Clear Risk.
+</div>
+""", unsafe_allow_html=True)
