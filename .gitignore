@@ -6,5 +6,4 @@ logs/
 data/grc_history.db
 .streamlit/secrets.toml
 .streamlit/credentials.yaml
-.GovernIQ_Agentic_Organisation_Playbook.md
-.GovernIQ_Project_Context.md
+docs/GovernIQ_*
