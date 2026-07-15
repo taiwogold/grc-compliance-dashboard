@@ -6,4 +6,4 @@ logs/
 data/grc_history.db
 .streamlit/secrets.toml
 .streamlit/credentials.yaml
-docs/GovernIQ_*
+private_docs/
